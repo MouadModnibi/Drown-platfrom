@@ -127,7 +127,15 @@ def stop_old_container(app_name):
 def run_container(app_name, port):
     logging.info(f"Starting container on port {port}")
 
-    container_id = run_command([
+    # Get environment variables from database
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT key, value FROM app_configs WHERE app_name=?', (app_name,))
+    configs = c.fetchall()
+    conn.close()
+    
+    # Build docker run command with env vars
+    cmd = [
         "docker",
         "run",
         "-d",
@@ -135,10 +143,18 @@ def run_container(app_name, port):
         app_name,
         "-p",
         f"{port}:8080",
-        app_name
-    ])
+    ]
+    
+    # Add all environment variables
+    for key, value in configs:
+        cmd.extend(["-e", f"{key}={value}"])
+    
+    cmd.append(app_name)
+    
+    container_id = run_command(cmd)
 
     logging.info(f"Container started: {container_id}")
+    logging.info(f"Environment variables: {len(configs)} config(s) set")
 
     return container_id
 
