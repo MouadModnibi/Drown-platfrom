@@ -11,7 +11,7 @@ from core.scaler import scale_app
 def deploy(app_name, repo_path):
     init_database()
 
-    custom_domain = DEFAULT_DOMAIN
+    custom_domain = f"{app_name}.{DEFAULT_DOMAIN}"
     config_file = os.path.join(repo_path, "mini-heroku.json")
 
     try:
