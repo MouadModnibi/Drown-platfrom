@@ -16,6 +16,16 @@ def run_command(command):
 
 def get_free_port():
     used_ports = set(get_used_ports())
+
+    # Also check actual Docker containers, not just DB
+    result = subprocess.run(["docker", "ps", "-a", "--format", "{{.Ports}}"],
+                             capture_output=True, text=True)
+    for line in result.stdout.split('\n'):
+        if '->' in line:
+            port = line.split('->')[0].split(':')[-1]
+            if port.isdigit():
+                used_ports.add(int(port))
+
     for port in range(BASE_PORT, MAX_PORT):
         if port not in used_ports:
             return port
@@ -35,6 +45,9 @@ def stop_container(container_name):
 
 def run_container(image_name, container_name, port, env_vars=None):
     logging.info(f"Starting container {container_name} on port {port}")
+    
+    subprocess.run(["docker", "rm", "-f", container_name],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     cmd = ["docker", "run", "-d", "--name", container_name, "-p", f"{port}:8080"]
 
