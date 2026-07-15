@@ -7,7 +7,7 @@ import subprocess
 import argparse
 from core.docker_ops import get_container_metrics
 from core.caddy import regenerate_caddy_config
-
+from core.database import get_deployment_history
 from core.database import (
     list_apps as db_list_apps,
     get_replicas,
@@ -18,6 +18,18 @@ from core.database import (
     unset_config as db_unset_config,
 )
 
+def show_history(app_name, limit=10):
+    history = get_deployment_history(app_name, limit)
+    if not history:
+        print(f"No deployment history for '{app_name}'")
+        return
+
+    print(f"\n📜 Deployment History for '{app_name}':")
+    print("-" * 70)
+    for status, message, created_at in history:
+        icon = "✓" if status == "success" else "✗"
+        print(f"  {icon} {created_at} | {status:8} | {message}")
+    print("-" * 70)
 
 def list_apps():
     apps = db_list_apps()
@@ -174,6 +186,10 @@ if __name__ == "__main__":
     scale_parser = subparsers.add_parser('scale', help='Scale an app to N replicas')
     scale_parser.add_argument('app_name')
     scale_parser.add_argument('count', type=int)
+    
+    history_parser = subparsers.add_parser('history', help='View deployment history')
+    history_parser.add_argument('app_name')
+    history_parser.add_argument('-n', '--limit', type=int, default=10, help='Number of entries to show')
 
     args = parser.parse_args()
 
@@ -200,5 +216,7 @@ if __name__ == "__main__":
         from core.scaler import scale_app
         scale_app(args.app_name, args.app_name, args.count)
         print(f"✓ {args.app_name} scaled to {args.count} replica(s)")
+    elif args.command == 'history':
+        show_history(args.app_name, args.limit)
     else:
         parser.print_help()
