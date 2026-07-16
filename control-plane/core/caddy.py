@@ -28,6 +28,10 @@ def regenerate_caddy_config():
 }}
 """
 
+    if not content.strip():
+        # No apps running — write a minimal valid empty config
+        content = "# no apps deployed\n"
+
     with open(CADDYFILE_PATH, "w") as f:
         f.write(content)
 

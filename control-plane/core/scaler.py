@@ -51,3 +51,25 @@ def _scale_down(app_name, current, desired_count):
         stop_container(container_name)
         remove_replica(app_name, replica_num)
         logging.info(f"✓ Replica {replica_num} removed for {app_name}")
+def redeploy_replicas(app_name, image_name):
+    """Force-restart all existing replicas with the latest image.
+    If no replicas exist yet, create the first one."""
+    current = get_replicas(app_name)
+    env_vars = get_configs(app_name)
+
+    if not current:
+        # First deploy for this app — create replica 1
+        scale_app(app_name, image_name, 1)
+        return
+
+    for replica_num, port, container_id, status in current:
+        container_name = f"{app_name}-{replica_num}"
+
+        logging.info(f"Redeploying replica {replica_num} for {app_name}...")
+
+        stop_container(container_name)
+        new_container_id = run_container(image_name, container_name, port, env_vars)
+        wait_until_ready(port)
+
+        add_replica(app_name, replica_num, port, new_container_id)
+        logging.info(f"✓ Replica {replica_num} redeployed on port {port}")

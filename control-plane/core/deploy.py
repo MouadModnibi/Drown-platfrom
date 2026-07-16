@@ -5,7 +5,7 @@ import logging
 from core.config import DEFAULT_DOMAIN, DEFAULT_BUILDER
 from core.database import init_database, upsert_app, log_deployment, get_replicas
 from core.docker_ops import build_image
-from core.scaler import scale_app
+from core.scaler import redeploy_replicas
 
 
 def deploy(app_name, repo_path):
@@ -28,17 +28,15 @@ def deploy(app_name, repo_path):
         upsert_app(app_name, custom_domain, DEFAULT_BUILDER)
 
         # Keep same replica count as before, or 1 if first deploy
-        existing_replicas = get_replicas(app_name)
-        target_count = len(existing_replicas) if existing_replicas else 1
+        redeploy_replicas(app_name, app_name)
 
-        scale_app(app_name, app_name, target_count)
-
-        log_deployment(app_name, "success", f"Deployed with {target_count} replica(s)")
+        replica_count = len(get_replicas(app_name))
+        log_deployment(app_name, "success", f"Deployed with {replica_count} replica(s)")
 
         return {
             "application": app_name,
             "domain": custom_domain,
-            "replicas": target_count,
+            "replicas": replica_count,
             "status": "running"
         }
 
