@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app.name }} - Drown Platform{% endblock %}
+
+{% block content %}
+<div class="app-detail-container">
+    <div class="back-link">
+        <a href="{{ url_for('index') }}">← Back to Ocean</a>
+    </div>
+
+    <div class="app-header">
+        <h2>{{ app.name }}</h2>
+        <span class="status-badge status-{{ app.status }}">{{ app.status }}</span>
+    </div>
+
+    <div class="app-info-grid">
+        <div class="info-card">
+            <h3>App Info</h3>
+            <div class="info-row">
+                <span class="info-label">🌐 Domain:</span>
+                <span class="info-value">{{ app.domain or 'N/A' }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">📦 Builder:</span>
+                <span class="info-value">{{ app.builder }}</span>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <h3>Replicas ({{ replicas|length }})</h3>
+            {% if replicas %}
+                {% for replica in replicas %}
+                <div class="replica-item">
+                    <div class="replica-header">
+                        <strong>replica-{{ replica.num }}</strong>
+                        <span class="status-badge status-{{ replica.status }}">{{ replica.status }}</span>
+                    </div>
+                    <div class="replica-details">
+                        <div>Port: {{ replica.port }}</div>
+                        {% if replica.metrics %}
+                        <div class="metrics">
+                            <span>CPU: {{ replica.metrics.cpu }}</span>
+                            <span>Memory: {{ replica.metrics.memory }}</span>
+                        </div>
+                        {% else %}
+                        <div class="metrics-unavailable">Metrics unavailable</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-state">No replicas running</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if configs %}
+    <div class="info-card">
+        <h3>Environment Variables</h3>
+        <div class="configs-list">
+            {% for config in configs %}
+            <div class="config-item">
+                <span class="config-key">{{ config.key }}</span>
+                <button class="reveal-btn" onclick="toggleValue(this, '{{ config.value|e }}')">
+                    Show
+                </button>
+                <span class="config-value" style="display: none;"></span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="info-card">
+        <h3>Recent Logs</h3>
+        <pre class="logs-container">{{ logs or 'No logs available' }}</pre>
+    </div>
+
+    <div class="info-card">
+        <h3>Deployment History</h3>
+        {% if deployments %}
+            <div class="deployments-list">
+                {% for deployment in deployments %}
+                <div class="deployment-item">
+                    <span class="deployment-time">{{ deployment.time_ago }}</span>
+                    <span class="status-badge status-{{ deployment.status }}">{{ deployment.status }}</span>
+                    <span class="deployment-message">{{ deployment.message or 'No message' }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="empty-state">No deployment history</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleValue(button, value) {
+        const valueSpan = button.nextElementSibling;
+        
+        if (valueSpan.style.display === 'none') {
+            valueSpan.textContent = value;
+            valueSpan.style.display = 'inline';
+            button.textContent = 'Hide';
+        } else {
+            valueSpan.style.display = 'none';
+            button.textContent = 'Show';
+        }
+    }
+
+    // Auto-refresh metrics every 30 seconds
+    setInterval(async () => {
+        try {
+            const appName = '{{ app.name }}';
+            const response = await fetch(`/api/app/${appName}/metrics`);
+            const data = await response.json();
+            
+            // Update replica metrics in the DOM
+            data.replicas.forEach((replica, index) => {
+                const replicaElement = document.querySelectorAll('.replica-item')[index];
+                if (!replicaElement) return;
+                
+                const metricsDiv = replicaElement.querySelector('.metrics');
+                if (metricsDiv && replica.metrics) {
+                    metricsDiv.innerHTML = `
+                        <span>CPU: ${replica.metrics.cpu}</span>
+                        <span>Memory: ${replica.metrics.memory}</span>
+                    `;
+                }
+                
+                // Update status badge
+                const statusBadge = replicaElement.querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.className = `status-badge status-${replica.status}`;
+                    statusBadge.textContent = replica.status;
+                }
+            });
+        } catch (error) {
+            console.error('Failed to refresh metrics:', error);
+        }
+    }, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Ocean - Drown Platform{% endblock %}
+
+{% block header_extra %}
+<div class="stats-bar">
+    <div class="stat">
+        <span class="stat-label">Apps</span>
+        <span class="stat-value" id="total-apps">{{ stats.total_apps }}</span>
+    </div>
+    <div class="stat">
+        <span class="stat-label">Replicas</span>
+        <span class="stat-value" id="total-replicas">{{ stats.total_replicas }}</span>
+    </div>
+    <div class="stat">
+        <span class="stat-label">Oldest</span>
+        <span class="stat-value" id="oldest-app">{{ stats.oldest_app_days }} days</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="ocean-container">
+    <div class="ocean-surface"></div>
+    
+    <!-- App bubbles -->
+    <div class="apps-layer">
+        {% for app in apps %}
+        <a href="{{ url_for('app_detail', app_name=app.name) }}" class="app-bubble" 
+           style="top: {{ app.depth + 60 }}px; left: {{ loop.index0 * 7 % 85 + 5 }}%;"
+           data-age="{{ app.days_old }}"
+           title="{{ app.name }}">
+            <div class="bubble-content status-{{ app.status }}">
+                <span class="bubble-icon">🫧</span>
+            </div>
+            <div class="app-tooltip">{{ app.name }}</div>
+        </a>
+        {% endfor %}
+    </div>
+    
+    <!-- Animated whale -->
+    <div class="whale">🐋</div>
+    
+    <!-- Decorative container bubbles -->
+    <div class="decoration-bubbles">
+        <div class="deco-bubble" style="top: 150px; left: 20%;"></div>
+        <div class="deco-bubble" style="top: 300px; left: 70%;"></div>
+        <div class="deco-bubble" style="top: 450px; left: 45%;"></div>
+        <div class="deco-bubble" style="top: 200px; left: 85%;"></div>
+    </div>
+    
+    <div class="ocean-floor"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-refresh stats every 30 seconds
+    setInterval(async () => {
+        try {
+            const response = await fetch('/api/stats');
+            const data = await response.json();
+            
+            document.getElementById('total-apps').textContent = data.total_apps;
+            document.getElementById('total-replicas').textContent = data.total_replicas;
+            document.getElementById('oldest-app').textContent = data.oldest_app_days + ' days';
+        } catch (error) {
+            console.error('Failed to refresh stats:', error);
+        }
+    }, 30000);
+
+    // Smooth continuous sinking animation
+    // Each real-world second = 0.0000116 days, so bubbles slowly drift down
+    const bubbles = document.querySelectorAll('.app-bubble');
+    const startTime = Date.now();
+    
+    function updateBubblePositions() {
+        const elapsedSeconds = (Date.now() - startTime) / 1000;
+        const elapsedDays = elapsedSeconds / 86400; // Real seconds to simulated days
+        
+        bubbles.forEach(bubble => {
+            const initialAge = parseFloat(bubble.dataset.age);
+            const currentAge = initialAge + elapsedDays;
+            
+            // Recalculate depth with same formula as backend
+            const scaleF = 50;
+            const maxDepth = 700;
+            const depth = Math.min(maxDepth, Math.sqrt(currentAge) * scaleF);
+            
+            bubble.style.top = (depth + 60) + 'px';
+        });
+        
+        requestAnimationFrame(updateBubblePositions);
+    }
+    
+    // Start the animation loop
+    requestAnimationFrame(updateBubblePositions);
+</script>
+{% endblock %}
