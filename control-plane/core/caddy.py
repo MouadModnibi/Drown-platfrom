@@ -8,7 +8,7 @@ from core.database import list_apps, get_replicas, get_app
 def regenerate_caddy_config():
     logging.info("Regenerating Caddy config...")
 
-    content = ""
+    content = "import /etc/caddy/Caddyfile.dashboard\n"
 
     for app_name, domain, status in list_apps():
         if status != "running":
