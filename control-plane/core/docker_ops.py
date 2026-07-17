@@ -86,6 +86,33 @@ def get_container_metrics(container_name):
     cpu, mem = result.stdout.strip().split('|')
     return {"cpu": cpu, "memory": mem}
 
+def get_multiple_container_metrics(container_names):
+    """Get CPU/memory for multiple containers in a single docker call.
+    container_names here are actually full container_id hashes from the DB;
+    we match them against docker's short ID output."""
+    if not container_names:
+        return {}
+
+    result = subprocess.run(
+        ["docker", "stats", "--no-stream", "--format", "{{.ID}}|{{.CPUPerc}}|{{.MemUsage}}"] + container_names,
+        capture_output=True, text=True
+    )
+
+    short_id_metrics = {}
+    if result.returncode == 0:
+        for line in result.stdout.strip().split('\n'):
+            if '|' in line:
+                short_id, cpu, mem = line.split('|')
+                short_id_metrics[short_id] = {"cpu": cpu, "memory": mem}
+
+    # Map back to full container_id hashes by prefix match
+    full_id_metrics = {}
+    for full_id in container_names:
+        short_id = full_id[:12]
+        if short_id in short_id_metrics:
+            full_id_metrics[full_id] = short_id_metrics[short_id]
+
+    return full_id_metrics
 
 def get_container_logs(container_name, follow=False):
     cmd = ["docker", "logs", container_name]
