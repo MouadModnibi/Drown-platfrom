@@ -1,7 +1,10 @@
 import sys
 import os
-from datetime import datetime, timedelta
-from flask import Flask, render_template, jsonify
+import secrets
+from datetime import datetime
+from functools import wraps
+from flask import Flask, render_template, jsonify, session, redirect, url_for, request, flash
+from werkzeug.security import generate_password_hash, check_password_hash
 import math
 
 # Add parent directory to path to import from control-plane
@@ -11,15 +14,41 @@ from core import database, docker_ops
 
 app = Flask(__name__)
 
-def calculate_app_age_days(created_at_str):
-    """Calculate days since app was created."""
-    try:
-        created_at = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S')
-        now = datetime.now()
-        delta = now - created_at
-        return delta.total_seconds() / 86400  # Convert to days
-    except:
-        return 0
+# Secret key management - persisted to survive restarts
+SECRET_KEY_FILE = os.path.join(os.path.dirname(__file__), '.secret_key')
+if os.path.exists(SECRET_KEY_FILE):
+    with open(SECRET_KEY_FILE, 'r') as f:
+        app.secret_key = f.read().strip()
+else:
+    app.secret_key = secrets.token_hex(32)
+    with open(SECRET_KEY_FILE, 'w') as f:
+        f.write(app.secret_key)
+
+
+# Auth decorator and helpers
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def get_current_user():
+    """Get current logged-in user info from session."""
+    user_id = session.get('user_id')
+    if user_id:
+        user_data = database.get_user_by_id(user_id)
+        if user_data:
+            return {'id': user_data[0], 'username': user_data[1]}
+    return None
+
+
+@app.context_processor
+def inject_user():
+    """Make current_user available in all templates."""
+    return dict(current_user=get_current_user())
 
 
 def calculate_app_age_days(created_at_str):
@@ -33,32 +62,113 @@ def calculate_app_age_days(created_at_str):
         return 0
 
 
-def calculate_ocean_depth(days_old, max_depth=700, scale_factor=50):
-    """
-    Non-linear depth calculation: depth = min(max_depth, sqrt(days_old) * scale_factor)
-    This makes new apps sink fast, then slow down asymptotically.
-    """
-    depth = math.sqrt(days_old) * scale_factor
-    return min(depth, max_depth)
+# ===== AUTH ROUTES =====
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Login page."""
+    # Already logged in, redirect to homepage
+    if 'user_id' in session:
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        if not username or not password:
+            return render_template('login.html', error="Username and password are required")
+        
+        user = database.get_user_by_username(username)
+        
+        if user and check_password_hash(user[2], password):
+            # Successful login
+            session['user_id'] = user[0]
+            next_page = request.args.get('next')
+            if next_page:
+                return redirect(next_page)
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html', error="Invalid username or password", username=username)
+    
+    return render_template('login.html')
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """Registration page."""
+    # Already logged in, redirect to homepage
+    if 'user_id' in session:
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # Validation
+        errors = []
+        
+        if not username:
+            errors.append("Username is required")
+        elif len(username) < 3:
+            errors.append("Username must be at least 3 characters")
+        elif database.get_user_by_username(username):
+            errors.append("Username already taken")
+        
+        if not password:
+            errors.append("Password is required")
+        elif len(password) < 6:
+            errors.append("Password must be at least 6 characters")
+        
+        if password != confirm_password:
+            errors.append("Passwords do not match")
+        
+        if errors:
+            return render_template('register.html', errors=errors, username=username)
+        
+        # Create user
+        password_hash = generate_password_hash(password)
+        database.create_user(username, password_hash)
+        
+        flash('Registration successful! Please log in.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('register.html')
+
+
+@app.route('/logout')
+def logout():
+    """Logout and clear session."""
+    session.clear()
+    return redirect(url_for('login'))
+
+
+# ===== PROTECTED ROUTES =====
 
 @app.route('/')
+@login_required
 def index():
-    """Homepage showing all apps."""
-    conn = database.get_connection()
-    c = conn.cursor()
+    """Homepage showing all apps owned by the current user."""
+    user = get_current_user()
     
-    # Get all apps with created_at timestamp
-    c.execute('SELECT app_name, domain, status, created_at FROM apps')
-    apps_data = c.fetchall()
-    conn.close()
+    # Get apps owned by this user
+    apps_data = database.list_apps_by_owner(user['id'])
     
     # Calculate depth and get replica count for each app
     apps = []
     total_replicas = 0
     
-    for app_name, domain, status, created_at in apps_data:
-        days_old = calculate_app_age_days(created_at)
+    for app_name, domain, status in apps_data:
+        # Get created_at from apps table
+        conn = database.get_connection()
+        c = conn.cursor()
+        c.execute('SELECT created_at FROM apps WHERE app_name=?', (app_name,))
+        created_at_row = c.fetchone()
+        conn.close()
+        
+        created_at = created_at_row[0] if created_at_row else None
+        days_old = calculate_app_age_days(created_at) if created_at else 0
+        
         replicas = database.get_replicas(app_name)
         replica_count = len(replicas)
         total_replicas += replica_count
@@ -83,8 +193,20 @@ def index():
 
 
 @app.route('/app/<app_name>')
+@login_required
 def app_detail(app_name):
     """Detailed view of a single app."""
+    user = get_current_user()
+    
+    # Check ownership
+    owner_id = database.get_app_owner(app_name)
+    
+    if owner_id is None:
+        return "App not found or not assigned to any user", 404
+    
+    if owner_id != user['id']:
+        return "Forbidden: You don't have access to this app", 403
+    
     # Get app info
     app_data = database.get_app(app_name)
     if not app_data:
@@ -97,14 +219,11 @@ def app_detail(app_name):
         'status': app_data[3]
     }
     
-    # Get replicas with metrics (batched into ONE docker call instead of N)
+    # Get replicas with metrics
     replicas_data = database.get_replicas(app_name)
-    container_names = [container_id for _, _, container_id, _ in replicas_data if container_id]
-    all_metrics = docker_ops.get_multiple_container_metrics(container_names)
-
     replicas = []
     for replica_num, port, container_id, status in replicas_data:
-        metrics = all_metrics.get(container_id)
+        metrics = docker_ops.get_container_metrics(container_id) if container_id else None
         replicas.append({
             'num': replica_num,
             'port': port,
@@ -150,8 +269,9 @@ def app_detail(app_name):
     if replicas and replicas[0]['container_id']:
         try:
             logs = docker_ops.get_container_logs(replicas[0]['container_id'], follow=False)
+            # Get last 50 lines
             logs = '\n'.join(logs.split('\n')[-50:])
-        except Exception:
+        except:
             logs = "Unable to fetch logs"
     
     return render_template('app_detail.html', 
@@ -163,23 +283,23 @@ def app_detail(app_name):
 
 
 @app.route('/api/stats')
+@login_required
 def api_stats():
     """API endpoint for refreshing stats without full page reload."""
-    conn = database.get_connection()
-    c = conn.cursor()
-    c.execute('SELECT app_name FROM apps')
-    apps = c.fetchall()
-    conn.close()
+    user = get_current_user()
+    
+    # Get apps owned by this user
+    apps = database.list_apps_by_owner(user['id'])
     
     total_replicas = 0
-    for (app_name,) in apps:
+    for app_name, _, _ in apps:
         replicas = database.get_replicas(app_name)
         total_replicas += len(replicas)
     
     # Get oldest app
     conn = database.get_connection()
     c = conn.cursor()
-    c.execute('SELECT created_at FROM apps ORDER BY created_at ASC LIMIT 1')
+    c.execute('SELECT created_at FROM apps WHERE owner_id=? ORDER BY created_at ASC LIMIT 1', (user['id'],))
     oldest = c.fetchone()
     conn.close()
     
@@ -195,74 +315,76 @@ def api_stats():
 
 
 @app.route('/api/app/<app_name>/metrics')
+@login_required
 def api_app_metrics(app_name):
     """API endpoint for refreshing app metrics."""
+    user = get_current_user()
+    
+    # Check ownership
+    owner_id = database.get_app_owner(app_name)
+    if owner_id != user['id']:
+        return jsonify({'error': 'Forbidden'}), 403
+    
     replicas_data = database.get_replicas(app_name)
-    container_ids = [container_id for _, _, container_id, _ in replicas_data if container_id]
-    all_metrics = docker_ops.get_multiple_container_metrics(container_ids)
-
     replicas = []
     for replica_num, port, container_id, status in replicas_data:
-        metrics = all_metrics.get(container_id)
+        metrics = docker_ops.get_container_metrics(container_id) if container_id else None
         replicas.append({
             'num': replica_num,
             'status': status,
             'metrics': metrics
         })
+    
     return jsonify({'replicas': replicas})
 
 
 @app.route('/metrics')
+@login_required
 def platform_metrics():
-    """Platform-wide metrics overview page."""
-    apps = database.list_apps()
-
-    # First pass: gather all (app_name, replica_data) and all container_ids across ALL apps
-    app_replica_pairs = []
-    all_container_ids = []
-    for app_name, domain, status in apps:
-        replicas_data = database.get_replicas(app_name)
-        for replica_num, port, container_id, r_status in replicas_data:
-            app_replica_pairs.append((app_name, replica_num, port, container_id, r_status))
-            if container_id:
-                all_container_ids.append(container_id)
-
-    # ONE batched docker call for every replica across every app
-    all_metrics = docker_ops.get_multiple_container_metrics(all_container_ids)
-
+    """Platform-wide metrics overview page (scoped to user's apps)."""
+    user = get_current_user()
+    
+    # Get apps owned by this user
+    apps = database.list_apps_by_owner(user['id'])
+    
     all_replicas = []
     total_cpu = 0
     metrics_count = 0
-
-    for app_name, replica_num, port, container_id, status in app_replica_pairs:
-        metrics = all_metrics.get(container_id)
-        replica_info = {
-            'app_name': app_name,
-            'replica_num': replica_num,
-            'port': port,
-            'container_id': container_id,
-            'status': status,
-            'metrics': metrics
-        }
-        if metrics:
-            try:
-                cpu_val = float(metrics['cpu'].replace('%', ''))
-                total_cpu += cpu_val
-                metrics_count += 1
-                replica_info['cpu_numeric'] = cpu_val
-            except:
+    
+    for app_name, domain, status in apps:
+        replicas_data = database.get_replicas(app_name)
+        for replica_num, port, container_id, status in replicas_data:
+            metrics = docker_ops.get_container_metrics(container_id) if container_id else None
+            
+            replica_info = {
+                'app_name': app_name,
+                'replica_num': replica_num,
+                'port': port,
+                'container_id': container_id,
+                'status': status,
+                'metrics': metrics
+            }
+            
+            if metrics:
+                try:
+                    cpu_val = float(metrics['cpu'].replace('%', ''))
+                    total_cpu += cpu_val
+                    metrics_count += 1
+                    replica_info['cpu_numeric'] = cpu_val
+                except:
+                    replica_info['cpu_numeric'] = 0
+                
+                try:
+                    mem_parts = metrics['memory'].split('/')
+                    mem_used = mem_parts[0].strip()
+                    replica_info['memory_display'] = mem_used
+                except:
+                    replica_info['memory_display'] = metrics['memory']
+            else:
                 replica_info['cpu_numeric'] = 0
-            try:
-                mem_parts = metrics['memory'].split('/')
-                mem_used = mem_parts[0].strip()
-                replica_info['memory_display'] = mem_used
-            except:
-                replica_info['memory_display'] = metrics['memory']
-        else:
-            replica_info['cpu_numeric'] = 0
-            replica_info['memory_display'] = 'N/A'
-
-        all_replicas.append(replica_info)
+                replica_info['memory_display'] = 'N/A'
+            
+            all_replicas.append(replica_info)
     
     avg_cpu = (total_cpu / metrics_count) if metrics_count > 0 else 0
     all_replicas.sort(key=lambda x: x.get('cpu_numeric', 0), reverse=True)
