@@ -104,10 +104,15 @@ def get_metrics(app_name):
         print(f"App '{app_name}' not found or not running")
         return
 
+    container_ids = [container_id for _, _, container_id, _ in replicas if container_id]
+
+    from core.docker_ops import get_multiple_container_metrics
+    all_metrics = get_multiple_container_metrics(container_ids)
+
     print(f"\n📊 Metrics for '{app_name}':")
     for replica_num, port, container_id, status in replicas:
         container_name = f"{app_name}-{replica_num}"
-        metrics = get_container_metrics(container_name)
+        metrics = all_metrics.get(container_id)
         if metrics:
             print(f"  {container_name} | CPU: {metrics['cpu']} | Mem: {metrics['memory']}")
         else:
