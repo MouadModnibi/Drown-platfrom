@@ -20,6 +20,21 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+# Add owner_id column to apps table if it doesn't exist yet (safe migration)
+    c.execute("PRAGMA table_info(apps)")
+    columns = [row[1] for row in c.fetchall()]
+    if 'owner_id' not in columns:
+        c.execute("ALTER TABLE apps ADD COLUMN owner_id INTEGER")    
+    
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
 
     c.execute('''
         CREATE TABLE IF NOT EXISTS replicas (
@@ -174,7 +189,63 @@ def unset_config(app_name, key):
     conn.commit()
     conn.close()
 
+# ---------------- users ----------------
 
+def create_user(username, password_hash):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO users (username, password_hash)
+        VALUES (?, ?)
+    ''', (username, password_hash))
+    conn.commit()
+    user_id = c.lastrowid
+    conn.close()
+    return user_id
+
+
+def get_user_by_username(username):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('SELECT id, username, password_hash FROM users WHERE username=?', (username,))
+    row = c.fetchone()
+    conn.close()
+    return row
+
+
+def get_user_by_id(user_id):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('SELECT id, username FROM users WHERE id=?', (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row
+
+
+def set_app_owner(app_name, owner_id):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('UPDATE apps SET owner_id=? WHERE app_name=?', (owner_id, app_name))
+    conn.commit()
+    conn.close()
+
+
+def list_apps_by_owner(owner_id):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('SELECT app_name, domain, status FROM apps WHERE owner_id=?', (owner_id,))
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def get_app_owner(app_name):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('SELECT owner_id FROM apps WHERE app_name=?', (app_name,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else None
 # ---------------- deployments (history) ----------------
 
 def log_deployment(app_name, status, message=""):
