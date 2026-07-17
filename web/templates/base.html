@@ -10,8 +10,11 @@
 <body>
     <header class="header">
         <div class="header-content">
-            <h1 class="logo">🐋 Drown Platform</h1>
-            {% block header_extra %}{% endblock %}
+            <h1 class="logo">Drown Platform</h1>
+            <nav class="nav">
+                <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Apps</a>
+                <a href="{{ url_for('platform_metrics') }}" class="nav-link {% if request.endpoint == 'platform_metrics' %}active{% endif %}">Metrics</a>
+            </nav>
         </div>
     </header>
 

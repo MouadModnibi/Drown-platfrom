@@ -1,6 +1,6 @@
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify
 import math
 
@@ -10,6 +10,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'control-plane'
 from core import database, docker_ops
 
 app = Flask(__name__)
+
+def calculate_app_age_days(created_at_str):
+    """Calculate days since app was created."""
+    try:
+        created_at = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S')
+        now = datetime.now()
+        delta = now - created_at
+        return delta.total_seconds() / 86400  # Convert to days
+    except:
+        return 0
 
 
 def calculate_app_age_days(created_at_str):
@@ -34,7 +44,7 @@ def calculate_ocean_depth(days_old, max_depth=700, scale_factor=50):
 
 @app.route('/')
 def index():
-    """Ocean homepage showing all apps as drowning bubbles."""
+    """Homepage showing all apps."""
     conn = database.get_connection()
     c = conn.cursor()
     
@@ -43,35 +53,30 @@ def index():
     apps_data = c.fetchall()
     conn.close()
     
-    # Calculate depth for each app
+    # Calculate depth and get replica count for each app
     apps = []
+    total_replicas = 0
+    
     for app_name, domain, status, created_at in apps_data:
         days_old = calculate_app_age_days(created_at)
-        depth = calculate_ocean_depth(days_old)
+        replicas = database.get_replicas(app_name)
+        replica_count = len(replicas)
+        total_replicas += replica_count
         
         apps.append({
             'name': app_name,
             'domain': domain,
             'status': status,
             'days_old': days_old,
-            'depth': depth,
-            'created_at': created_at
+            'created_at': created_at,
+            'replica_count': replica_count,
         })
     
     # Calculate stats
-    total_apps = len(apps)
-    
-    total_replicas = 0
-    for app in apps:
-        replicas = database.get_replicas(app['name'])
-        total_replicas += len(replicas)
-    
-    oldest_app_days = max([a['days_old'] for a in apps]) if apps else 0
-    
     stats = {
-        'total_apps': total_apps,
+        'total_apps': len(apps),
         'total_replicas': total_replicas,
-        'oldest_app_days': int(oldest_app_days)
+        'oldest_app_days': int(max([a['days_old'] for a in apps])) if apps else 0
     }
     
     return render_template('index.html', apps=apps, stats=stats)
@@ -158,11 +163,14 @@ def app_detail(app_name):
 @app.route('/api/stats')
 def api_stats():
     """API endpoint for refreshing stats without full page reload."""
-    apps = database.list_apps()
-    total_apps = len(apps)
+    conn = database.get_connection()
+    c = conn.cursor()
+    c.execute('SELECT app_name FROM apps')
+    apps = c.fetchall()
+    conn.close()
     
     total_replicas = 0
-    for app_name, _, _ in apps:
+    for (app_name,) in apps:
         replicas = database.get_replicas(app_name)
         total_replicas += len(replicas)
     
@@ -178,7 +186,7 @@ def api_stats():
         oldest_app_days = int(calculate_app_age_days(oldest[0]))
     
     return jsonify({
-        'total_apps': total_apps,
+        'total_apps': len(apps),
         'total_replicas': total_replicas,
         'oldest_app_days': oldest_app_days
     })
@@ -198,6 +206,60 @@ def api_app_metrics(app_name):
         })
     
     return jsonify({'replicas': replicas})
+
+
+@app.route('/metrics')
+def platform_metrics():
+    """Platform-wide metrics overview page."""
+    apps = database.list_apps()
+    
+    all_replicas = []
+    total_cpu = 0
+    metrics_count = 0
+    
+    for app_name, domain, status in apps:
+        replicas_data = database.get_replicas(app_name)
+        for replica_num, port, container_id, status in replicas_data:
+            metrics = docker_ops.get_container_metrics(container_id) if container_id else None
+            
+            replica_info = {
+                'app_name': app_name,
+                'replica_num': replica_num,
+                'port': port,
+                'container_id': container_id,
+                'status': status,
+                'metrics': metrics
+            }
+            
+            if metrics:
+                try:
+                    cpu_val = float(metrics['cpu'].replace('%', ''))
+                    total_cpu += cpu_val
+                    metrics_count += 1
+                    replica_info['cpu_numeric'] = cpu_val
+                except:
+                    replica_info['cpu_numeric'] = 0
+                
+                try:
+                    mem_parts = metrics['memory'].split('/')
+                    mem_used = mem_parts[0].strip()
+                    replica_info['memory_display'] = mem_used
+                except:
+                    replica_info['memory_display'] = metrics['memory']
+            else:
+                replica_info['cpu_numeric'] = 0
+                replica_info['memory_display'] = 'N/A'
+            
+            all_replicas.append(replica_info)
+    
+    avg_cpu = (total_cpu / metrics_count) if metrics_count > 0 else 0
+    all_replicas.sort(key=lambda x: x.get('cpu_numeric', 0), reverse=True)
+    
+    return render_template('metrics.html', 
+                         replicas=all_replicas,
+                         total_replicas=len(all_replicas),
+                         avg_cpu=avg_cpu,
+                         total_apps=len(apps))
 
 
 if __name__ == '__main__':

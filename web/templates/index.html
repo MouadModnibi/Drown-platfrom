@@ -1,56 +1,69 @@
 {% extends "base.html" %}
 
-{% block title %}Ocean - Drown Platform{% endblock %}
-
-{% block header_extra %}
-<div class="stats-bar">
-    <div class="stat">
-        <span class="stat-label">Apps</span>
-        <span class="stat-value" id="total-apps">{{ stats.total_apps }}</span>
-    </div>
-    <div class="stat">
-        <span class="stat-label">Replicas</span>
-        <span class="stat-value" id="total-replicas">{{ stats.total_replicas }}</span>
-    </div>
-    <div class="stat">
-        <span class="stat-label">Oldest</span>
-        <span class="stat-value" id="oldest-app">{{ stats.oldest_app_days }} days</span>
-    </div>
-</div>
-{% endblock %}
+{% block title %}Apps - Drown Platform{% endblock %}
 
 {% block content %}
-<div class="ocean-container">
-    <div class="ocean-surface"></div>
-    
-    <!-- App bubbles -->
-    <div class="apps-layer">
-        {% for app in apps %}
-        <a href="{{ url_for('app_detail', app_name=app.name) }}" class="app-bubble" 
-           style="top: {{ app.depth + 60 }}px; left: {{ loop.index0 * 7 % 85 + 5 }}%;"
-           data-age="{{ app.days_old }}"
-           title="{{ app.name }}">
-            <div class="bubble-content status-{{ app.status }}">
-                <span class="bubble-icon">🫧</span>
-            </div>
-            <div class="app-tooltip">{{ app.name }}</div>
-        </a>
-        {% endfor %}
+<!-- Stats Bar -->
+<div class="stats-bar">
+    <div class="stat-card">
+        <div class="stat-label">Total Apps</div>
+        <div class="stat-value" id="total-apps">{{ stats.total_apps }}</div>
     </div>
-    
-    <!-- Animated whale -->
-    <div class="whale">🐋</div>
-    
-    <!-- Decorative container bubbles -->
-    <div class="decoration-bubbles">
-        <div class="deco-bubble" style="top: 150px; left: 20%;"></div>
-        <div class="deco-bubble" style="top: 300px; left: 70%;"></div>
-        <div class="deco-bubble" style="top: 450px; left: 45%;"></div>
-        <div class="deco-bubble" style="top: 200px; left: 85%;"></div>
+    <div class="stat-card">
+        <div class="stat-label">Total Replicas</div>
+        <div class="stat-value" id="total-replicas">{{ stats.total_replicas }}</div>
     </div>
-    
-    <div class="ocean-floor"></div>
+    <div class="stat-card">
+        <div class="stat-label">Running</div>
+        <div class="stat-value" style="color: var(--status-running);">
+            {{ apps | selectattr('status', 'equalto', 'running') | list | length }}
+        </div>
+        <div class="stat-sublabel">
+            {{ apps | selectattr('status', 'ne', 'running') | list | length }} stopped
+        </div>
+    </div>
 </div>
+
+<!-- Apps Grid -->
+{% if apps %}
+<div class="apps-grid">
+    {% for app in apps %}
+    <div class="app-card">
+        <div class="app-card-header">
+            <div class="app-status-line">
+                <div class="status-dot {{ app.status }}"></div>
+                <h3 class="app-name">{{ app.name }}</h3>
+            </div>
+            {% if app.domain %}
+            <a href="https://{{ app.domain }}" target="_blank" class="app-domain">
+                {{ app.domain }} ↗
+            </a>
+            {% else %}
+            <span class="app-domain" style="opacity: 0.5;">No domain configured</span>
+            {% endif %}
+        </div>
+        
+        <div class="app-meta">
+            <div class="app-meta-item">
+                <span class="replica-badge">{{ app.replica_count }} replica{{ 's' if app.replica_count != 1 else '' }}</span>
+            </div>
+            <div class="app-meta-item">
+                <strong>{{ '%.0f'|format(app.days_old) }}</strong> days old
+            </div>
+        </div>
+        
+        <a href="{{ url_for('app_detail', app_name=app.name) }}" class="btn btn-primary btn-block">
+            View Details →
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">📦</div>
+    <div class="empty-state-text">No apps deployed yet</div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -63,37 +76,9 @@
             
             document.getElementById('total-apps').textContent = data.total_apps;
             document.getElementById('total-replicas').textContent = data.total_replicas;
-            document.getElementById('oldest-app').textContent = data.oldest_app_days + ' days';
         } catch (error) {
             console.error('Failed to refresh stats:', error);
         }
     }, 30000);
-
-    // Smooth continuous sinking animation
-    // Each real-world second = 0.0000116 days, so bubbles slowly drift down
-    const bubbles = document.querySelectorAll('.app-bubble');
-    const startTime = Date.now();
-    
-    function updateBubblePositions() {
-        const elapsedSeconds = (Date.now() - startTime) / 1000;
-        const elapsedDays = elapsedSeconds / 86400; // Real seconds to simulated days
-        
-        bubbles.forEach(bubble => {
-            const initialAge = parseFloat(bubble.dataset.age);
-            const currentAge = initialAge + elapsedDays;
-            
-            // Recalculate depth with same formula as backend
-            const scaleF = 50;
-            const maxDepth = 700;
-            const depth = Math.min(maxDepth, Math.sqrt(currentAge) * scaleF);
-            
-            bubble.style.top = (depth + 60) + 'px';
-        });
-        
-        requestAnimationFrame(updateBubblePositions);
-    }
-    
-    // Start the animation loop
-    requestAnimationFrame(updateBubblePositions);
 </script>
 {% endblock %}

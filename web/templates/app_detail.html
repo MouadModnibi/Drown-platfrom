@@ -3,109 +3,160 @@
 {% block title %}{{ app.name }} - Drown Platform{% endblock %}
 
 {% block content %}
-<div class="app-detail-container">
-    <div class="back-link">
-        <a href="{{ url_for('index') }}">← Back to Ocean</a>
-    </div>
+<a href="{{ url_for('index') }}" class="back-link">
+    ← Back to Apps
+</a>
 
-    <div class="app-header">
-        <h2>{{ app.name }}</h2>
-        <span class="status-badge status-{{ app.status }}">{{ app.status }}</span>
-    </div>
+<div class="page-header">
+    <h1 class="page-title">{{ app.name }}</h1>
+    {% if app.domain %}
+    <p class="page-subtitle">
+        <a href="https://{{ app.domain }}" target="_blank">{{ app.domain }} ↗</a>
+    </p>
+    {% endif %}
+</div>
 
-    <div class="app-info-grid">
-        <div class="info-card">
-            <h3>App Info</h3>
-            <div class="info-row">
-                <span class="info-label">🌐 Domain:</span>
-                <span class="info-value">{{ app.domain or 'N/A' }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">📦 Builder:</span>
-                <span class="info-value">{{ app.builder }}</span>
-            </div>
+<!-- App Info Section -->
+<div class="detail-section">
+    <h2 class="section-title">Application Info</h2>
+    <div class="info-grid">
+        <div class="info-item">
+            <span class="info-label">Status</span>
+            <span class="info-value">
+                <span class="status-badge status-{{ app.status }}">{{ app.status }}</span>
+            </span>
         </div>
+        <div class="info-item">
+            <span class="info-label">Builder</span>
+            <span class="info-value">{{ app.builder }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Domain</span>
+            <span class="info-value">
+                {% if app.domain %}
+                <a href="https://{{ app.domain }}" target="_blank">{{ app.domain }} ↗</a>
+                {% else %}
+                Not configured
+                {% endif %}
+            </span>
+        </div>
+    </div>
+</div>
 
-        <div class="info-card">
-            <h3>Replicas ({{ replicas|length }})</h3>
-            {% if replicas %}
+<!-- Replicas Section -->
+<div class="detail-section">
+    <h2 class="section-title">Replicas ({{ replicas|length }})</h2>
+    {% if replicas %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Replica</th>
+                    <th>Port</th>
+                    <th>Container ID</th>
+                    <th>Status</th>
+                    <th>CPU</th>
+                    <th>Memory</th>
+                </tr>
+            </thead>
+            <tbody>
                 {% for replica in replicas %}
-                <div class="replica-item">
-                    <div class="replica-header">
-                        <strong>replica-{{ replica.num }}</strong>
+                <tr>
+                    <td><strong>replica-{{ replica.num }}</strong></td>
+                    <td class="table-monospace">{{ replica.port }}</td>
+                    <td class="table-monospace">{{ replica.container_id[:12] if replica.container_id else 'N/A' }}</td>
+                    <td>
                         <span class="status-badge status-{{ replica.status }}">{{ replica.status }}</span>
-                    </div>
-                    <div class="replica-details">
-                        <div>Port: {{ replica.port }}</div>
+                    </td>
+                    <td>
                         {% if replica.metrics %}
-                        <div class="metrics">
-                            <span>CPU: {{ replica.metrics.cpu }}</span>
-                            <span>Memory: {{ replica.metrics.memory }}</span>
-                        </div>
+                        {% set cpu_val = replica.metrics.cpu.replace('%', '') | float %}
+                        <span class="metric-badge {% if cpu_val > 80 %}high{% elif cpu_val > 50 %}medium{% endif %}">
+                            {{ replica.metrics.cpu }}
+                        </span>
                         {% else %}
-                        <div class="metrics-unavailable">Metrics unavailable</div>
+                        <span class="metric-badge">—</span>
                         {% endif %}
-                    </div>
-                </div>
+                    </td>
+                    <td>
+                        {% if replica.metrics %}
+                        <span class="metric-badge">{{ replica.metrics.memory }}</span>
+                        {% else %}
+                        <span class="metric-badge">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
                 {% endfor %}
-            {% else %}
-                <p class="empty-state">No replicas running</p>
-            {% endif %}
-        </div>
+            </tbody>
+        </table>
     </div>
-
-    {% if configs %}
-    <div class="info-card">
-        <h3>Environment Variables</h3>
-        <div class="configs-list">
-            {% for config in configs %}
-            <div class="config-item">
-                <span class="config-key">{{ config.key }}</span>
-                <button class="reveal-btn" onclick="toggleValue(this, '{{ config.value|e }}')">
-                    Show
-                </button>
-                <span class="config-value" style="display: none;"></span>
-            </div>
-            {% endfor %}
-        </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-text">No replicas running</div>
     </div>
     {% endif %}
+</div>
 
-    <div class="info-card">
-        <h3>Recent Logs</h3>
-        <pre class="logs-container">{{ logs or 'No logs available' }}</pre>
+<!-- Environment Variables Section -->
+{% if configs %}
+<div class="detail-section">
+    <h2 class="section-title">Environment Variables</h2>
+    <div class="config-list">
+        {% for config in configs %}
+        <div class="config-item">
+            <span class="config-key">{{ config.key }}</span>
+            <span class="config-value hidden" id="value-{{ loop.index }}">••••••••</span>
+            <button class="btn-reveal" onclick="toggleValue({{ loop.index }}, '{{ config.value|e }}')">
+                Show
+            </button>
+        </div>
+        {% endfor %}
     </div>
+</div>
+{% endif %}
 
-    <div class="info-card">
-        <h3>Deployment History</h3>
-        {% if deployments %}
-            <div class="deployments-list">
-                {% for deployment in deployments %}
-                <div class="deployment-item">
-                    <span class="deployment-time">{{ deployment.time_ago }}</span>
-                    <span class="status-badge status-{{ deployment.status }}">{{ deployment.status }}</span>
-                    <span class="deployment-message">{{ deployment.message or 'No message' }}</span>
-                </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <p class="empty-state">No deployment history</p>
-        {% endif %}
+<!-- Logs Section -->
+<div class="detail-section">
+    <h2 class="section-title">Recent Logs</h2>
+    <div class="logs-container">{{ logs or 'No logs available' }}</div>
+</div>
+
+<!-- Deployment History Section -->
+<div class="detail-section">
+    <h2 class="section-title">Deployment History</h2>
+    {% if deployments %}
+    <div class="deployment-list">
+        {% for deployment in deployments %}
+        <div class="deployment-item status-{{ deployment.status }}">
+            <span class="deployment-time">{{ deployment.time_ago }}</span>
+            <span class="deployment-status">
+                <span class="status-badge status-{{ deployment.status }}">{{ deployment.status }}</span>
+            </span>
+            <span class="deployment-message">{{ deployment.message or 'No message' }}</span>
+        </div>
+        {% endfor %}
     </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-text">No deployment history</div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    function toggleValue(button, value) {
-        const valueSpan = button.nextElementSibling;
+    function toggleValue(index, value) {
+        const valueElement = document.getElementById('value-' + index);
+        const button = event.target;
         
-        if (valueSpan.style.display === 'none') {
-            valueSpan.textContent = value;
-            valueSpan.style.display = 'inline';
+        if (valueElement.classList.contains('hidden')) {
+            valueElement.textContent = value;
+            valueElement.classList.remove('hidden');
             button.textContent = 'Hide';
         } else {
-            valueSpan.style.display = 'none';
+            valueElement.textContent = '••••••••';
+            valueElement.classList.add('hidden');
             button.textContent = 'Show';
         }
     }
@@ -117,24 +168,24 @@
             const response = await fetch(`/api/app/${appName}/metrics`);
             const data = await response.json();
             
-            // Update replica metrics in the DOM
+            const rows = document.querySelectorAll('tbody tr');
             data.replicas.forEach((replica, index) => {
-                const replicaElement = document.querySelectorAll('.replica-item')[index];
-                if (!replicaElement) return;
-                
-                const metricsDiv = replicaElement.querySelector('.metrics');
-                if (metricsDiv && replica.metrics) {
-                    metricsDiv.innerHTML = `
-                        <span>CPU: ${replica.metrics.cpu}</span>
-                        <span>Memory: ${replica.metrics.memory}</span>
-                    `;
-                }
-                
-                // Update status badge
-                const statusBadge = replicaElement.querySelector('.status-badge');
-                if (statusBadge) {
-                    statusBadge.className = `status-badge status-${replica.status}`;
-                    statusBadge.textContent = replica.status;
+                if (rows[index]) {
+                    const cpuCell = rows[index].querySelector('td:nth-child(5)');
+                    const memCell = rows[index].querySelector('td:nth-child(6)');
+                    const statusCell = rows[index].querySelector('td:nth-child(4)');
+                    
+                    if (replica.metrics) {
+                        const cpuVal = parseFloat(replica.metrics.cpu.replace('%', ''));
+                        let cpuClass = '';
+                        if (cpuVal > 80) cpuClass = 'high';
+                        else if (cpuVal > 50) cpuClass = 'medium';
+                        
+                        cpuCell.innerHTML = `<span class="metric-badge ${cpuClass}">${replica.metrics.cpu}</span>`;
+                        memCell.innerHTML = `<span class="metric-badge">${replica.metrics.memory}</span>`;
+                    }
+                    
+                    statusCell.innerHTML = `<span class="status-badge status-${replica.status}">${replica.status}</span>`;
                 }
             });
         } catch (error) {
