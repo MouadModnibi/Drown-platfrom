@@ -150,9 +150,8 @@ def app_detail(app_name):
     if replicas and replicas[0]['container_id']:
         try:
             logs = docker_ops.get_container_logs(replicas[0]['container_id'], follow=False)
-            # Get last 50 lines
             logs = '\n'.join(logs.split('\n')[-50:])
-        except:
+        except Exception:
             logs = "Unable to fetch logs"
     
     return render_template('app_detail.html', 
@@ -253,7 +252,6 @@ def platform_metrics():
                 replica_info['cpu_numeric'] = cpu_val
             except:
                 replica_info['cpu_numeric'] = 0
-
             try:
                 mem_parts = metrics['memory'].split('/')
                 mem_used = mem_parts[0].strip()
@@ -263,8 +261,8 @@ def platform_metrics():
         else:
             replica_info['cpu_numeric'] = 0
             replica_info['memory_display'] = 'N/A'
-            
-            all_replicas.append(replica_info)
+
+        all_replicas.append(replica_info)
     
     avg_cpu = (total_cpu / metrics_count) if metrics_count > 0 else 0
     all_replicas.sort(key=lambda x: x.get('cpu_numeric', 0), reverse=True)

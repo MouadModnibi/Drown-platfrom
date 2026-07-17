@@ -119,4 +119,7 @@ def get_container_logs(container_name, follow=False):
     if follow:
         cmd.append("-f")
     result = subprocess.run(cmd, capture_output=not follow, text=True)
-    return result.stdout if not follow else None
+    if follow:
+        return None
+    # docker logs can write to stdout AND stderr — combine both
+    return result.stdout + result.stderr
