@@ -97,11 +97,14 @@ def app_detail(app_name):
         'status': app_data[3]
     }
     
-    # Get replicas with metrics
+    # Get replicas with metrics (batched into ONE docker call instead of N)
     replicas_data = database.get_replicas(app_name)
+    container_names = [container_id for _, _, container_id, _ in replicas_data if container_id]
+    all_metrics = docker_ops.get_multiple_container_metrics(container_names)
+
     replicas = []
     for replica_num, port, container_id, status in replicas_data:
-        metrics = docker_ops.get_container_metrics(container_id) if container_id else None
+        metrics = all_metrics.get(container_id)
         replicas.append({
             'num': replica_num,
             'port': port,
