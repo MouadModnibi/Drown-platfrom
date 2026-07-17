@@ -219,11 +219,16 @@ def app_detail(app_name):
         'status': app_data[3]
     }
     
-    # Get replicas with metrics
+    # Get replicas with metrics (batch fetch for performance)
     replicas_data = database.get_replicas(app_name)
+    
+    # Batch fetch all metrics at once
+    container_ids = [container_id for _, _, container_id, _ in replicas_data if container_id]
+    all_metrics = docker_ops.get_multiple_container_metrics(container_ids)
+    
     replicas = []
     for replica_num, port, container_id, status in replicas_data:
-        metrics = docker_ops.get_container_metrics(container_id) if container_id else None
+        metrics = all_metrics.get(container_id) if container_id else None
         replicas.append({
             'num': replica_num,
             'port': port,
@@ -325,10 +330,14 @@ def api_app_metrics(app_name):
     if owner_id != user['id']:
         return jsonify({'error': 'Forbidden'}), 403
     
+    # Batch fetch metrics for performance
     replicas_data = database.get_replicas(app_name)
+    container_ids = [container_id for _, _, container_id, _ in replicas_data if container_id]
+    all_metrics = docker_ops.get_multiple_container_metrics(container_ids)
+    
     replicas = []
     for replica_num, port, container_id, status in replicas_data:
-        metrics = docker_ops.get_container_metrics(container_id) if container_id else None
+        metrics = all_metrics.get(container_id) if container_id else None
         replicas.append({
             'num': replica_num,
             'status': status,
@@ -348,43 +357,52 @@ def platform_metrics():
     apps = database.list_apps_by_owner(user['id'])
     
     all_replicas = []
-    total_cpu = 0
-    metrics_count = 0
+    all_container_ids = []
     
+    # First pass: collect all container IDs
     for app_name, domain, status in apps:
         replicas_data = database.get_replicas(app_name)
         for replica_num, port, container_id, status in replicas_data:
-            metrics = docker_ops.get_container_metrics(container_id) if container_id else None
-            
-            replica_info = {
+            if container_id:
+                all_container_ids.append(container_id)
+            all_replicas.append({
                 'app_name': app_name,
                 'replica_num': replica_num,
                 'port': port,
                 'container_id': container_id,
                 'status': status,
-                'metrics': metrics
-            }
-            
-            if metrics:
-                try:
-                    cpu_val = float(metrics['cpu'].replace('%', ''))
-                    total_cpu += cpu_val
-                    metrics_count += 1
-                    replica_info['cpu_numeric'] = cpu_val
-                except:
-                    replica_info['cpu_numeric'] = 0
-                
-                try:
-                    mem_parts = metrics['memory'].split('/')
-                    mem_used = mem_parts[0].strip()
-                    replica_info['memory_display'] = mem_used
-                except:
-                    replica_info['memory_display'] = metrics['memory']
-            else:
+            })
+    
+    # Batch fetch all metrics at once for performance
+    all_metrics = docker_ops.get_multiple_container_metrics(all_container_ids)
+    
+    # Second pass: attach metrics to replicas
+    total_cpu = 0
+    metrics_count = 0
+    
+    for replica_info in all_replicas:
+        container_id = replica_info['container_id']
+        metrics = all_metrics.get(container_id) if container_id else None
+        replica_info['metrics'] = metrics
+        
+        if metrics:
+            try:
+                cpu_val = float(metrics['cpu'].replace('%', ''))
+                total_cpu += cpu_val
+                metrics_count += 1
+                replica_info['cpu_numeric'] = cpu_val
+            except:
                 replica_info['cpu_numeric'] = 0
-                replica_info['memory_display'] = 'N/A'
             
-            all_replicas.append(replica_info)
+            try:
+                mem_parts = metrics['memory'].split('/')
+                mem_used = mem_parts[0].strip()
+                replica_info['memory_display'] = mem_used
+            except:
+                replica_info['memory_display'] = metrics['memory']
+        else:
+            replica_info['cpu_numeric'] = 0
+            replica_info['memory_display'] = 'N/A'
     
     avg_cpu = (total_cpu / metrics_count) if metrics_count > 0 else 0
     all_replicas.sort(key=lambda x: x.get('cpu_numeric', 0), reverse=True)
