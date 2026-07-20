@@ -413,10 +413,6 @@ def platform_metrics():
                          avg_cpu=avg_cpu,
                          total_apps=len(apps))
 
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
-
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
     data = request.get_json(silent=True) or {}
@@ -434,3 +430,9 @@ def api_login():
     database.set_user_token(user[0], token)
 
     return jsonify({'token': token, 'username': user[1]}), 200
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+
+
