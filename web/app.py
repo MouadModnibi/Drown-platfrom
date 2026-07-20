@@ -416,3 +416,21 @@ def platform_metrics():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    data = request.get_json(silent=True) or {}
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({'error': 'username and password required'}), 400
+
+    user = database.get_user_by_username(username)
+    if not user or not check_password_hash(user[2], password):
+        return jsonify({'error': 'invalid credentials'}), 401
+
+    token = secrets.token_hex(32)
+    database.set_user_token(user[0], token)
+
+    return jsonify({'token': token, 'username': user[1]}), 200
