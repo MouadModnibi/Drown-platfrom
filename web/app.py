@@ -490,6 +490,61 @@ def api_app_metrics_v2(app_name):
 
     return jsonify({'app': app_name, 'replicas': replicas}), 200
 
+@app.route('/api/apps/<app_name>/scale', methods=['POST'])
+def api_scale_app(app_name):
+    user = get_user_from_token()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    owner_id = database.get_app_owner(app_name)
+    if owner_id is None:
+        return jsonify({'error': 'app not found'}), 404
+    if owner_id != user['id']:
+        return jsonify({'error': 'forbidden'}), 403
+
+    data = request.get_json(silent=True) or {}
+    desired_count = data.get('replicas')
+
+    if not isinstance(desired_count, int) or desired_count < 1:
+        return jsonify({'error': 'replicas must be a positive integer'}), 400
+
+    try:
+        from core.scaler import scale_app
+        scale_app(app_name, app_name, desired_count)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': f'scaling failed: {str(e)}'}), 500
+
+    replicas = database.get_replicas(app_name)
+    return jsonify({'app': app_name, 'replicas': len(replicas)}), 200
+
+
+@app.route('/api/apps/<app_name>/logs', methods=['GET'])
+def api_app_logs(app_name):
+    user = get_user_from_token()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    owner_id = database.get_app_owner(app_name)
+    if owner_id is None:
+        return jsonify({'error': 'app not found'}), 404
+    if owner_id != user['id']:
+        return jsonify({'error': 'forbidden'}), 403
+
+    replicas = database.get_replicas(app_name)
+    if not replicas:
+        return jsonify({'error': 'no running replicas'}), 404
+
+    replica_num, port, container_id, status = replicas[0]
+    try:
+        logs = docker_ops.get_container_logs(container_id, follow=False)
+        logs = '\n'.join(logs.split('\n')[-50:])
+    except Exception as e:
+        return jsonify({'error': f'could not fetch logs: {str(e)}'}), 500
+
+    return jsonify({'app': app_name, 'logs': logs}), 200
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
 
