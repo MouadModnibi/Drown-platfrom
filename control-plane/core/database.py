@@ -35,6 +35,11 @@ def init_database():
         )
     ''')
 
+    c.execute("PRAGMA table_info(users)")
+    columns = [row[1] for row in c.fetchall()]
+    if 'api_token' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN api_token TEXT")
+
 
     c.execute('''
         CREATE TABLE IF NOT EXISTS replicas (
@@ -269,3 +274,19 @@ def get_deployment_history(app_name, limit=10):
     rows = c.fetchall()
     conn.close()
     return rows
+
+def set_user_token(user_id, token):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('UPDATE users SET api_token=? WHERE id=?', (token, user_id))
+    conn.commit()
+    conn.close()
+
+
+def get_user_by_token(token):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('SELECT id, username FROM users WHERE api_token=?', (token,))
+    row = c.fetchone()
+    conn.close()
+    return row
