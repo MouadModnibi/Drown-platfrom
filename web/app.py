@@ -461,6 +461,35 @@ def api_list_apps():
 
     return jsonify({'apps': apps}), 200
 
+@app.route('/api/apps/<app_name>/metrics', methods=['GET'])
+def api_app_metrics_v2(app_name):
+    user = get_user_from_token()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    owner_id = database.get_app_owner(app_name)
+    if owner_id is None:
+        return jsonify({'error': 'app not found'}), 404
+    if owner_id != user['id']:
+        return jsonify({'error': 'forbidden'}), 403
+
+    replicas_data = database.get_replicas(app_name)
+    container_ids = [container_id for _, _, container_id, _ in replicas_data if container_id]
+    all_metrics = docker_ops.get_multiple_container_metrics(container_ids)
+
+    replicas = []
+    for replica_num, port, container_id, status in replicas_data:
+        metrics = all_metrics.get(container_id)
+        replicas.append({
+            'replica_num': replica_num,
+            'port': port,
+            'status': status,
+            'cpu': metrics['cpu'] if metrics else None,
+            'memory': metrics['memory'] if metrics else None
+        })
+
+    return jsonify({'app': app_name, 'replicas': replicas}), 200
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
 
