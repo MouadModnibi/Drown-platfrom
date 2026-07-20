@@ -44,6 +44,17 @@ def get_current_user():
             return {'id': user_data[0], 'username': user_data[1]}
     return None
 
+def get_user_from_token():
+    """Verify the Authorization header token and return the user, or None."""
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return None
+    token = auth_header.replace('Bearer ', '', 1)
+    user = database.get_user_by_token(token)
+    if user:
+        return {'id': user[0], 'username': user[1]}
+    return None
+
 
 @app.context_processor
 def inject_user():
@@ -430,6 +441,25 @@ def api_login():
     database.set_user_token(user[0], token)
 
     return jsonify({'token': token, 'username': user[1]}), 200
+
+@app.route('/api/apps', methods=['GET'])
+def api_list_apps():
+    user = get_user_from_token()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    apps_data = database.list_apps_by_owner(user['id'])
+    apps = []
+    for app_name, domain, status in apps_data:
+        replicas = database.get_replicas(app_name)
+        apps.append({
+            'name': app_name,
+            'domain': domain,
+            'status': status,
+            'replicas': len(replicas)
+        })
+
+    return jsonify({'apps': apps}), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
