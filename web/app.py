@@ -1,4 +1,6 @@
 import sys
+import re
+import subprocess
 import os
 import secrets
 from datetime import datetime
@@ -55,6 +57,9 @@ def get_user_from_token():
         return {'id': user[0], 'username': user[1]}
     return None
 
+def is_valid_app_name(name):
+    """Only allow lowercase letters, numbers, and hyphens, 3-30 chars"""
+    return bool(re.match(r'^[a-z0-9]([a-z0-9-]{1,28}[a-z0-9])?$', name))
 
 @app.context_processor
 def inject_user():
@@ -544,6 +549,48 @@ def api_app_logs(app_name):
         return jsonify({'error': f'could not fetch logs: {str(e)}'}), 500
 
     return jsonify({'app': app_name, 'logs': logs}), 200
+
+@app.route('/api/apps/create', methods=['POST'])
+def api_create_app():
+    user = get_user_from_token()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    data = request.get_json(silent=True) or {}
+    app_name = data.get('name', '').strip().lower()
+
+    if not is_valid_app_name(app_name):
+        return jsonify({'error': 'invalid app name: use lowercase letters, numbers, hyphens only, 3-30 chars'}), 400
+
+    if database.get_app_owner(app_name) is not None or database.get_app(app_name):
+        return jsonify({'error': 'app name already taken'}), 409
+
+    repo_base = "/home/ubuntu/git-hook-test"
+    repo_path = f"{repo_base}/{app_name}.git"
+    hook_source = f"{repo_base}/test-repo.git/hooks/post-receive"
+
+    if os.path.exists(repo_path):
+        return jsonify({'error': 'repo already exists on disk'}), 409
+
+    try:
+        subprocess.run(["git", "init", "--bare", repo_path], check=True, capture_output=True, text=True)
+        subprocess.run(["cp", hook_source, f"{repo_path}/hooks/post-receive"], check=True, capture_output=True, text=True)
+        subprocess.run(["chmod", "+x", f"{repo_path}/hooks/post-receive"], check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        return jsonify({'error': f'failed to create repo: {e.stderr}'}), 500
+
+    domain = f"{app_name}.dr0wn.duckdns.org"
+    database.upsert_app(app_name, domain, "heroku/builder:24")
+    database.set_app_owner(app_name, user['id'])
+
+    remote_url = f"ssh://ubuntu@51.170.134.251{repo_path}"
+
+    return jsonify({
+        'app': app_name,
+        'domain': domain,
+        'git_remote': remote_url,
+        'push_instructions': f"git remote add platform {remote_url} && git push platform main"
+    }), 201
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
