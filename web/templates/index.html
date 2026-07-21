@@ -3,6 +3,29 @@
 {% block title %}Apps - Drown Platform{% endblock %}
 
 {% block content %}
+<!-- Header with Create Button -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <h1 style="font-size: 24px; font-weight: 600; margin: 0; color: #E6EDF3;">Your Apps</h1>
+    <a href="{{ url_for('create_app_page') }}" style="
+        padding: 10px 20px;
+        background: #58A6FF;
+        border: none;
+        border-radius: 6px;
+        color: #0A0E14;
+        font-weight: 600;
+        font-size: 14px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    " onmouseover="this.style.background='#6CB6FF'" onmouseout="this.style.background='#58A6FF'">
+        <span style="font-size: 16px;">+</span>
+        Create New App
+    </a>
+</div>
+
 <!-- Stats Bar -->
 <div class="stats-bar">
     <div class="stat-card">
@@ -62,6 +85,22 @@
 <div class="empty-state">
     <div class="empty-state-icon">📦</div>
     <div class="empty-state-text">No apps deployed yet</div>
+    <a href="{{ url_for('create_app_page') }}" style="
+        margin-top: 16px;
+        display: inline-block;
+        padding: 10px 20px;
+        background: #58A6FF;
+        border: none;
+        border-radius: 6px;
+        color: #0A0E14;
+        font-weight: 600;
+        font-size: 14px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background 0.2s;
+    " onmouseover="this.style.background='#6CB6FF'" onmouseout="this.style.background='#58A6FF'">
+        Create Your First App
+    </a>
 </div>
 {% endif %}
 {% endblock %}

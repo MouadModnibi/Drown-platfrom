@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Deploy {{ app_name }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 32px; margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+            <div style="width: 32px; height: 32px; background: rgba(88, 166, 255, 0.15); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">
+                🚀
+            </div>
+            <h1 style="font-size: 28px; font-weight: 600; margin: 0; color: #E6EDF3;">Deploy {{ app_name }}</h1>
+        </div>
+        <p style="color: #8B949E; margin-bottom: 8px;">Your app has been created! Follow these steps to deploy.</p>
+        <p style="color: #8B949E; margin: 0;">Domain: <code style="background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; color: #58A6FF;">{{ domain }}</code></p>
+    </div>
+
+    <!-- Step 1 -->
+    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: flex-start; gap: 16px;">
+            <div style="flex-shrink: 0; width: 32px; height: 32px; background: rgba(88, 166, 255, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #58A6FF;">
+                1
+            </div>
+            <div style="flex: 1;">
+                <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 8px 0; color: #E6EDF3;">Install the Drown CLI</h3>
+                <p style="color: #8B949E; font-size: 14px; margin-bottom: 12px;">If you haven't already installed the CLI tool:</p>
+                <div style="position: relative;">
+                    <pre style="background: #0D1117; padding: 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); overflow-x: auto; margin: 0;"><code style="color: #E6EDF3; font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; font-size: 13px;">pip install drown-cli</code></pre>
+                    <button onclick="copyToClipboard('pip install drown-cli', this)" style="position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 4px; color: #8B949E; font-size: 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: flex-start; gap: 16px;">
+            <div style="flex-shrink: 0; width: 32px; height: 32px; background: rgba(88, 166, 255, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #58A6FF;">
+                2
+            </div>
+            <div style="flex: 1;">
+                <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 8px 0; color: #E6EDF3;">Log in to Drown</h3>
+                <p style="color: #8B949E; font-size: 14px; margin-bottom: 12px;">Authenticate with your account (sets up SSH keys automatically):</p>
+                <div style="position: relative;">
+                    <pre style="background: #0D1117; padding: 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); overflow-x: auto; margin: 0;"><code style="color: #E6EDF3; font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; font-size: 13px;">drown login</code></pre>
+                    <button onclick="copyToClipboard('drown login', this)" style="position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 4px; color: #8B949E; font-size: 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: flex-start; gap: 16px;">
+            <div style="flex-shrink: 0; width: 32px; height: 32px; background: rgba(88, 166, 255, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #58A6FF;">
+                3
+            </div>
+            <div style="flex: 1;">
+                <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 8px 0; color: #E6EDF3;">Initialize your project</h3>
+                <p style="color: #8B949E; font-size: 14px; margin-bottom: 12px;">If your project isn't already a Git repository:</p>
+                <div style="position: relative;">
+                    <pre style="background: #0D1117; padding: 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); overflow-x: auto; margin: 0;"><code style="color: #E6EDF3; font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; font-size: 13px;">cd your-project/
+git init</code></pre>
+                    <button onclick="copyToClipboard('cd your-project/\ngit init', this)" style="position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 4px; color: #8B949E; font-size: 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: flex-start; gap: 16px;">
+            <div style="flex-shrink: 0; width: 32px; height: 32px; background: rgba(88, 166, 255, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #58A6FF;">
+                4
+            </div>
+            <div style="flex: 1;">
+                <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 8px 0; color: #E6EDF3;">Connect this app</h3>
+                <p style="color: #8B949E; font-size: 14px; margin-bottom: 12px;">Link your local repository to this app:</p>
+                <div style="position: relative;">
+                    <pre style="background: #0D1117; padding: 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); overflow-x: auto; margin: 0;"><code style="color: #E6EDF3; font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; font-size: 13px;">drown create {{ app_name }}</code></pre>
+                    <button onclick="copyToClipboard('drown create {{ app_name }}', this)" style="position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 4px; color: #8B949E; font-size: 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Copy</button>
+                </div>
+                <p style="color: #8B949E; font-size: 13px; margin-top: 8px; padding: 12px; background: rgba(88, 166, 255, 0.08); border-left: 3px solid #58A6FF; border-radius: 4px;">
+                    <strong>Note:</strong> Since you created this app via the web dashboard, this command will link your local Git repository to the existing app rather than creating a new one. It's safe to run even though the app already exists.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 5 -->
+    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+        <div style="display: flex; align-items: flex-start; gap: 16px;">
+            <div style="flex-shrink: 0; width: 32px; height: 32px; background: rgba(88, 166, 255, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #58A6FF;">
+                5
+            </div>
+            <div style="flex: 1;">
+                <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 8px 0; color: #E6EDF3;">Deploy your code</h3>
+                <p style="color: #8B949E; font-size: 14px; margin-bottom: 12px;">Push your code to deploy (uses your main branch):</p>
+                <div style="position: relative;">
+                    <pre style="background: #0D1117; padding: 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); overflow-x: auto; margin: 0;"><code style="color: #E6EDF3; font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; font-size: 13px;">git add .
+git commit -m "Initial commit"
+git push platform main</code></pre>
+                    <button onclick="copyToClipboard('git add .\ngit commit -m \"Initial commit\"\ngit push platform main', this)" style="position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 6px 12px; border-radius: 4px; color: #8B949E; font-size: 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Copy</button>
+                </div>
+                <p style="color: #8B949E; font-size: 13px; margin-top: 8px;">
+                    Your app will be built and deployed automatically. Check the build logs in your terminal.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Next Steps -->
+    <div style="background: rgba(46, 160, 67, 0.1); border: 1px solid rgba(46, 160, 67, 0.3); border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+        <h3 style="font-size: 16px; font-weight: 600; margin: 0 0 12px 0; color: #3FB950;">✅ What's next?</h3>
+        <ul style="margin: 0; padding-left: 20px; color: #8B949E; font-size: 14px; line-height: 1.8;">
+            <li>After pushing, your app will be live at <code style="background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; color: #58A6FF;">{{ domain }}</code></li>
+            <li>View logs: <code style="background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;">drown logs {{ app_name }}</code></li>
+            <li>Scale replicas: <code style="background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;">drown scale {{ app_name }} 3</code></li>
+            <li>Having trouble? Check the <a href="{{ url_for('help_page') }}" style="color: #58A6FF; text-decoration: none;">troubleshooting guide</a></li>
+        </ul>
+    </div>
+
+    <div style="display: flex; gap: 12px;">
+        <a href="{{ url_for('app_detail', app_name=app_name) }}" style="flex: 1; padding: 12px; background: #58A6FF; border-radius: 6px; color: #0A0E14; font-weight: 600; font-size: 14px; text-align: center; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#6CB6FF'" onmouseout="this.style.background='#58A6FF'">
+            View App Details
+        </a>
+        <a href="{{ url_for('index') }}" style="flex: 1; padding: 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #E6EDF3; font-weight: 600; font-size: 14px; text-align: center; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(text, button) {
+    navigator.clipboard.writeText(text).then(function() {
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.style.background = 'rgba(46, 160, 67, 0.2)';
+        button.style.color = '#3FB950';
+        setTimeout(function() {
+            button.textContent = originalText;
+            button.style.background = 'rgba(255,255,255,0.08)';
+            button.style.color = '#8B949E';
+        }, 2000);
+    });
+}
+</script>
+{% endblock %}

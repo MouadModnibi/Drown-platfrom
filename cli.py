@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 sys.path.insert(0, "/home/ubuntu/mini-heroku/control-plane")
-
 import sqlite3
 import subprocess
 import argparse

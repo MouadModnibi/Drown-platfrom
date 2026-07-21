@@ -6,11 +6,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from drown import api, config
+from drown import api, config, __version__
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="drown")
+@click.version_option(version=__version__, prog_name="drown")
 def cli():
     """Drown Platform CLI - Manage your self-hosted PaaS."""
     pass
@@ -122,8 +122,19 @@ def create(app_name):
     success, result = api.create_app(token, app_name)
     
     if not success:
-        click.secho(f"✗ Error: {result.get('error')}", fg="red", err=True)
-        sys.exit(1)
+        error = result.get('error', '')
+        
+        # If app already exists, try linking instead
+        if 'already' in error.lower() or 'exists' in error.lower():
+            click.echo(f"App '{app_name}' already exists, linking to it...")
+            success, result = api.link_app(token, app_name)
+            
+            if not success:
+                click.secho(f"✗ Error: {result.get('error')}", fg="red", err=True)
+                sys.exit(1)
+        else:
+            click.secho(f"✗ Error: {error}", fg="red", err=True)
+            sys.exit(1)
     
     domain = result.get("domain", "N/A")
     git_remote_raw = result.get("git_remote")
@@ -135,7 +146,7 @@ def create(app_name):
     if git_remote_raw and "51.170.134.251" in git_remote_raw:
         git_remote = git_remote_raw.replace("51.170.134.251", "drown-platform")
     
-    click.secho(f"✓ App '{app_name}' created successfully!", fg="green")
+    click.secho(f"✓ App '{app_name}' ready!", fg="green")
     click.echo(f"Domain: {domain}")
     
     # Check if we're in a git repo

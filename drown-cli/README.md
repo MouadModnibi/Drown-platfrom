@@ -185,4 +185,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support
 
-For issues or questions, please open an issue on [GitHub](https://github.com/drownplatform/drown-cli/issues).
+For issues or questions, please open an issue on [GitHub](https://github.com/drownplatform/drown-cli).

@@ -429,6 +429,82 @@ def platform_metrics():
                          avg_cpu=avg_cpu,
                          total_apps=len(apps))
 
+
+@app.route('/create-app', methods=['GET', 'POST'])
+@login_required
+def create_app_page():
+    """Create app page (web UI)."""
+    if request.method == 'POST':
+        app_name = request.form.get('app_name', '').strip().lower()
+        
+        if not is_valid_app_name(app_name):
+            return render_template('create_app.html', 
+                                 error="Invalid app name. Use lowercase letters, numbers, and hyphens only (3-30 characters).")
+        
+        # Call the API endpoint (which supports session auth)
+        user = get_current_user()
+        
+        # Check if app already exists
+        if database.get_app_owner(app_name) is not None:
+            return render_template('create_app.html', 
+                                 error="App name already taken. Please choose a different name.")
+        
+        # Create the app
+        repo_base = "/home/ubuntu/git-hook-test"
+        repo_path = f"{repo_base}/{app_name}.git"
+        hook_source = f"{repo_base}/test-repo.git/hooks/post-receive"
+        
+        if os.path.exists(repo_path):
+            return render_template('create_app.html', 
+                                 error="Repository already exists on disk. Please contact support.")
+        
+        try:
+            subprocess.run(["git", "init", "--bare", repo_path], check=True, capture_output=True, text=True)
+            subprocess.run(["cp", hook_source, f"{repo_path}/hooks/post-receive"], check=True, capture_output=True, text=True)
+            subprocess.run(["chmod", "+x", f"{repo_path}/hooks/post-receive"], check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            return render_template('create_app.html', 
+                                 error=f"Failed to create repository: {e.stderr}")
+        
+        domain = f"{app_name}.dr0wn.duckdns.org"
+        database.upsert_app(app_name, domain, "heroku/builder:24")
+        database.set_app_owner(app_name, user['id'])
+        
+        # Redirect to onboarding guide
+        return redirect(url_for('onboarding_guide', app_name=app_name))
+    
+    return render_template('create_app.html')
+
+
+@app.route('/onboarding/<app_name>')
+@login_required
+def onboarding_guide(app_name):
+    """Onboarding guide after creating an app."""
+    user = get_current_user()
+    
+    # Verify ownership
+    owner_id = database.get_app_owner(app_name)
+    if owner_id is None:
+        return "App not found", 404
+    if owner_id != user['id']:
+        return "Forbidden", 403
+    
+    # Get app info
+    app_data = database.get_app(app_name)
+    if not app_data:
+        return "App not found", 404
+    
+    domain = app_data[1]
+    
+    return render_template('onboarding.html', app_name=app_name, domain=domain)
+
+
+@app.route('/help')
+@login_required
+def help_page():
+    """Help and troubleshooting page."""
+    return render_template('help.html')
+
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
     data = request.get_json(silent=True) or {}
@@ -552,7 +628,8 @@ def api_app_logs(app_name):
 
 @app.route('/api/apps/create', methods=['POST'])
 def api_create_app():
-    user = get_user_from_token()
+    # Support both token auth (CLI) and session auth (web UI)
+    user = get_user_from_token() or get_current_user()
     if not user:
         return jsonify({'error': 'unauthorized'}), 401
 
@@ -591,6 +668,40 @@ def api_create_app():
         'git_remote': remote_url,
         'push_instructions': f"git remote add platform {remote_url} && git push platform main"
     }), 201
+
+
+@app.route('/api/apps/<app_name>/link', methods=['POST'])
+def api_link_app(app_name):
+    """
+    Get git remote info for an existing app (for CLI linkage).
+    Like 'create' but for apps that already exist.
+    """
+    # Support both token auth (CLI) and session auth (web UI)
+    user = get_user_from_token() or get_current_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+    
+    # Verify ownership
+    owner_id = database.get_app_owner(app_name)
+    if owner_id is None:
+        return jsonify({'error': 'app not found'}), 404
+    if owner_id != user['id']:
+        return jsonify({'error': 'forbidden'}), 403
+    
+    # Get app info
+    app_data = database.get_app(app_name)
+    domain = app_data[1] if app_data else f"{app_name}.dr0wn.duckdns.org"
+    
+    # Return git remote info
+    repo_path = f"/home/ubuntu/git-hook-test/{app_name}.git"
+    remote_url = f"ssh://ubuntu@drown-platform{repo_path}"
+    
+    return jsonify({
+        'app': app_name,
+        'domain': domain,
+        'git_remote': remote_url,
+        'push_instructions': f"git push platform main"
+    }), 200
 
 
 @app.route('/api/keys/register', methods=['POST'])

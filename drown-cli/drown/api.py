@@ -120,7 +120,14 @@ def get_logs(token, app_name):
     return _make_request("GET", f"/api/apps/{app_name}/logs", token=token)
 
 
-def get_metrics(token, app_name):
+def link_app(token, app_name):
+    """
+    Link to an existing app (get git remote info).
+    
+    Returns: (success: bool, result: dict)
+    result contains: {"app": {...}, "domain": "...", "git_remote": "...", "push_instructions": "..."} or {"error": "..."}
+    """
+    return _make_request("POST", f"/api/apps/{app_name}/link", token=token)
     """
     Get metrics for an app.
     
@@ -130,7 +137,14 @@ def get_metrics(token, app_name):
     return _make_request("GET", f"/api/apps/{app_name}/metrics", token=token)
 
 
-def register_ssh_key(token, public_key):
+def get_metrics(token, app_name):
+    """
+    Get metrics for an app.
+    
+    Returns: (success: bool, result: dict)
+    result contains: {"app": "...", "replicas": [...]} or {"error": "..."}
+    """
+    return _make_request("GET", f"/api/apps/{app_name}/metrics", token=token)
     """
     Register an SSH public key with the platform.
     
