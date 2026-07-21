@@ -7,7 +7,7 @@ Deploy and manage containerized applications with simple commands, similar to He
 ## Installation
 
 ```bash
-pip install drown-cli
+pip install drown
 ```
 
 ## Quick Start
