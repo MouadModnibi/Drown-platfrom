@@ -80,7 +80,7 @@ https://pypi.org/manage/account/token/
 
 ```bash
 # Install from PyPI
-pip install drown-cli
+pip install drown
 
 # Test it works
 drown --version
@@ -160,4 +160,4 @@ twine upload dist/*
 
 After publishing, your package will be available at:
 - **PyPI**: https://pypi.org/project/drown-cli/
-- **Install**: `pip install drown-cli`
+- **Install**: `pip install drown`

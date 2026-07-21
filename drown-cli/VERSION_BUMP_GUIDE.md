@@ -44,6 +44,8 @@ setup(
 )
 ```
 
+**Note**: The package name on PyPI is `drown-cli`, but users install it with `pip install drown` (this is configured in setup.py).
+
 ### 3. Create a CHANGELOG Entry (Optional but Recommended)
 
 Create or update `drown-cli/CHANGELOG.md`:
@@ -127,7 +129,7 @@ twine upload --repository testpypi dist/*
 
 Then test install:
 ```bash
-pip install --index-url https://test.pypi.org/simple/ drown-cli
+pip install --index-url https://test.pypi.org/simple/ drown
 drown --version  # Should show 0.2.0
 ```
 
@@ -144,7 +146,7 @@ You'll be prompted for:
 ### 10. Verify Installation
 
 ```bash
-pip install --upgrade drown-cli
+pip install --upgrade drown
 drown --version
 ```
 
@@ -193,7 +195,7 @@ Note: You cannot delete or replace a published version on PyPI.
 
 ## Post-Publication Checklist
 
-- [ ] Verified installation works: `pip install --upgrade drown-cli`
+- [ ] Verified installation works: `pip install --upgrade drown`
 - [ ] Version check passes: `drown --version` shows 0.2.0
 - [ ] Tested app linking feature works
 - [ ] Updated any external documentation (if applicable)
@@ -220,7 +222,7 @@ twine check dist/*
 twine upload dist/*
 
 # Verify
-pip install --upgrade drown-cli
+pip install --upgrade drown
 drown --version
 ```
 
