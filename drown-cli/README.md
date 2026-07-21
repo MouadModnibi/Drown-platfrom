@@ -14,6 +14,7 @@ pip install drown
 
 ```bash
 # Login to your Drown Platform instance
+# This also automatically sets up SSH keys for git push
 drown login
 
 # List your apps
@@ -21,6 +22,9 @@ drown apps
 
 # Create a new app
 drown create my-app
+
+# Deploy your code (works automatically after login)
+git push platform main
 
 # Scale your app
 drown scale my-app 3
@@ -44,7 +48,16 @@ Authenticate with your Drown Platform instance. You'll be prompted for your user
 drown login
 ```
 
-Credentials are saved to `~/.drown/config.json` for subsequent commands.
+**What happens during login:**
+1. Authenticates with the platform API
+2. Generates an SSH key pair (if not already present) at `~/.drown/id_ed25519`
+3. Registers the public key with the platform
+4. Updates `~/.ssh/config` to use the key automatically for git operations
+5. Saves credentials to `~/.drown/config.json`
+
+After a successful login, `git push platform main` works automatically with no additional SSH configuration needed.
+
+**Note**: Requires OpenSSH or Git for Windows to be installed (for ssh-keygen).
 
 ### `drown logout`
 Remove saved credentials.
@@ -74,10 +87,12 @@ Create a new application.
 drown create my-new-app
 ```
 
-If run from a git repository, automatically adds a `platform` git remote. Then deploy with:
+If run from a git repository, automatically adds a `platform` git remote using the SSH host alias configured during login. Then deploy with:
 ```bash
 git push platform main
 ```
+
+The SSH key setup from `drown login` ensures this works seamlessly without any manual SSH configuration.
 
 ### `drown scale <app-name> <count>`
 Scale the number of replicas for an application.
@@ -110,6 +125,14 @@ REPLICA    PORT    STATUS    CPU      MEMORY
 
 ## Configuration
 
+### SSH Keys
+The CLI automatically manages SSH keys for git operations:
+- **Private key**: `~/.drown/id_ed25519`
+- **Public key**: `~/.drown/id_ed25519.pub`
+- **SSH config**: `~/.ssh/config` (automatically updated with `Host drown-platform` entry)
+
+These are set up during `drown login` and registered with your platform account. The keys are ed25519 format with no passphrase for non-interactive git operations.
+
 ### API URL
 By default, the CLI connects to `https://dashboard.dr0wn.duckdns.org`.
 
@@ -121,7 +144,7 @@ drown login
 ```
 
 ### Config File
-Authentication token is stored in `~/.drown/config.json`:
+Authentication token and user info are stored in `~/.drown/config.json`:
 
 ```json
 {
@@ -131,10 +154,16 @@ Authentication token is stored in `~/.drown/config.json`:
 }
 ```
 
+**Windows users**: `~` resolves to `C:\Users\<YourUsername>\`, so config files are stored at:
+- `C:\Users\<YourUsername>\.drown\config.json`
+- `C:\Users\<YourUsername>\.drown\id_ed25519`
+- `C:\Users\<YourUsername>\.ssh\config`
+
 ## Requirements
 
 - Python 3.7+
-- Git (optional, for `drown create` auto-remote feature)
+- OpenSSH or Git for Windows (for SSH key generation and git operations)
+- Git (optional, for `drown create` auto-remote feature and deployment)
 
 ## Development
 

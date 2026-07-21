@@ -128,3 +128,15 @@ def get_metrics(token, app_name):
     result contains: {"app": "...", "replicas": [...]} or {"error": "..."}
     """
     return _make_request("GET", f"/api/apps/{app_name}/metrics", token=token)
+
+
+def register_ssh_key(token, public_key):
+    """
+    Register an SSH public key with the platform.
+    
+    Returns: (success: bool, result: dict)
+    result contains: {"message": "..."} or {"error": "..."}
+    """
+    return _make_request("POST", "/api/keys/register", token=token, data={
+        "public_key": public_key
+    })

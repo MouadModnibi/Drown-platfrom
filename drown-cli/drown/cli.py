@@ -36,7 +36,21 @@ def login():
         config.save_config(token, username)
         
         click.secho(f"✓ Logged in as {username}", fg="green")
-        click.echo(f"Config saved to {config.CONFIG_FILE}")
+        
+        # SSH key setup
+        click.echo("\nSetting up SSH key for git push...")
+        ssh_success, ssh_messages = config.setup_ssh_key(username, token)
+        
+        for message in ssh_messages:
+            if message.startswith("✓"):
+                click.secho(message, fg="green")
+            elif message.startswith("⚠"):
+                click.secho(message, fg="yellow")
+            elif message.startswith("✗"):
+                click.secho(message, fg="red", err=True)
+            else:
+                click.echo(message)
+        
     else:
         click.secho(f"✗ Login failed: {result.get('error')}", fg="red", err=True)
         sys.exit(1)
@@ -112,8 +126,14 @@ def create(app_name):
         sys.exit(1)
     
     domain = result.get("domain", "N/A")
-    git_remote = result.get("git_remote")
-    push_instructions = result.get("push_instructions", "")
+    git_remote_raw = result.get("git_remote")
+    
+    # Convert git remote to use drown-platform host alias
+    # Original: ssh://ubuntu@51.170.134.251/home/ubuntu/git-hook-test/<app>.git
+    # New: ssh://ubuntu@drown-platform/home/ubuntu/git-hook-test/<app>.git
+    git_remote = git_remote_raw
+    if git_remote_raw and "51.170.134.251" in git_remote_raw:
+        git_remote = git_remote_raw.replace("51.170.134.251", "drown-platform")
     
     click.secho(f"✓ App '{app_name}' created successfully!", fg="green")
     click.echo(f"Domain: {domain}")
@@ -125,13 +145,13 @@ def create(app_name):
         
         try:
             # Check if remote already exists
-            result = subprocess.run(
+            result_check = subprocess.run(
                 ["git", "remote", "get-url", "platform"],
                 capture_output=True,
                 text=True
             )
             
-            if result.returncode == 0:
+            if result_check.returncode == 0:
                 click.secho("⚠ Remote 'platform' already exists. Skipping.", fg="yellow")
             else:
                 # Add the remote
@@ -147,8 +167,8 @@ def create(app_name):
             click.secho("⚠ Git not found. Please install git to use auto-remote feature.", fg="yellow")
     
     # Print deployment instructions
-    if push_instructions:
-        click.echo(f"\n{push_instructions}")
+    click.echo(f"\nTo deploy, push your code:")
+    click.echo(f"  git push platform main")
 
 
 @cli.command()
