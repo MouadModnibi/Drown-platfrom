@@ -592,6 +592,40 @@ def api_create_app():
         'push_instructions': f"git remote add platform {remote_url} && git push platform main"
     }), 201
 
+
+@app.route('/api/keys/register', methods=['POST'])
+def api_register_key():
+    user = get_user_from_token()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    data = request.get_json(silent=True) or {}
+    public_key = data.get('public_key', '').strip()
+
+    if not public_key or not public_key.startswith(('ssh-ed25519', 'ssh-rsa')):
+        return jsonify({'error': 'invalid public key format'}), 400
+
+    # Prevent newline injection into authorized_keys
+    if '\n' in public_key or '\r' in public_key:
+        return jsonify({'error': 'invalid public key format'}), 400
+
+    authorized_keys_path = "/home/ubuntu/.ssh/authorized_keys"
+    wrapper_script = "/home/ubuntu/mini-heroku/control-plane/git-shell-wrapper.sh"
+
+    entry = (
+        f'command="{wrapper_script} {user["id"]}",'
+        f'no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty '
+        f'{public_key}\n'
+    )
+
+    try:
+        with open(authorized_keys_path, "a") as f:
+            f.write(entry)
+    except Exception as e:
+        return jsonify({'error': f'failed to register key: {str(e)}'}), 500
+
+    return jsonify({'message': 'key registered successfully'}), 200
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
 
