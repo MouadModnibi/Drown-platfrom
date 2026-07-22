@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="drown",
-    version="0.2.1",
+    version="0.2.2",
     author="Drown Platform",
     author_email="platform@dr0wn.duckdns.org",
     description="CLI tool for managing apps on Drown Platform - a self-hosted PaaS",
