@@ -15,6 +15,9 @@
                 <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Apps</a>
                 <a href="{{ url_for('platform_metrics') }}" class="nav-link {% if request.endpoint == 'platform_metrics' %}active{% endif %}">Metrics</a>
                 <a href="{{ url_for('help_page') }}" class="nav-link {% if request.endpoint == 'help_page' %}active{% endif %}">Help</a>
+                {% if is_admin %}
+                <a href="{{ url_for('admin_dashboard') }}" class="nav-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">Admin</a>
+                {% endif %}
                 {% if current_user %}
                 <span class="nav-separator">|</span>
                 <span class="nav-username">{{ current_user.username }}</span>

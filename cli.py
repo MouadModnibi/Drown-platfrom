@@ -66,15 +66,9 @@ def get_logs(app_name, follow=False):
 
 
 def delete_app(app_name):
-    replicas = get_replicas(app_name)
-    for replica_num, port, container_id, status in replicas:
-        container_name = f"{app_name}-{replica_num}"
-        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
-
-    remove_all_replicas(app_name)
-    regenerate_caddy_config()
-
-    print(f"✓ App '{app_name}' deleted ({len(replicas)} replica(s) removed)")
+    from core.scaler import delete_app as core_delete_app
+    success, replica_count, message = core_delete_app(app_name)
+    print(f"✓ {message}")
 
 
 def get_app_info(app_name):

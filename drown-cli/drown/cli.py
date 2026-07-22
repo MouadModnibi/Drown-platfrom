@@ -112,6 +112,7 @@ def apps():
 @click.argument("app_name")
 def create(app_name):
     """Create a new app."""
+    app_name = app_name.lower()
     token = config.get_token()
     if not token:
         click.secho("✗ Please run 'drown login' first", fg="red", err=True)

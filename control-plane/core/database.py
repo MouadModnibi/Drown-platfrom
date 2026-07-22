@@ -39,6 +39,12 @@ def init_database():
     columns = [row[1] for row in c.fetchall()]
     if 'api_token' not in columns:
         c.execute("ALTER TABLE users ADD COLUMN api_token TEXT")
+    
+    # Add is_admin column to users table if it doesn't exist yet (safe migration)
+    c.execute("PRAGMA table_info(users)")
+    columns = [row[1] for row in c.fetchall()]
+    if 'is_admin' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
 
 
     c.execute('''
@@ -290,3 +296,36 @@ def get_user_by_token(token):
     row = c.fetchone()
     conn.close()
     return row
+
+
+# ---------------- admin ----------------
+
+def is_user_admin(user_id):
+    """Check if user has admin privileges."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('SELECT is_admin FROM users WHERE id=?', (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return bool(result[0]) if result else False
+
+
+def get_all_apps_with_owners():
+    """Get all apps with owner information (admin only)."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT 
+            a.app_name, 
+            a.domain, 
+            a.status, 
+            a.owner_id,
+            u.username,
+            a.created_at
+        FROM apps a
+        LEFT JOIN users u ON a.owner_id = u.id
+        ORDER BY a.created_at DESC
+    ''')
+    apps = c.fetchall()
+    conn.close()
+    return apps

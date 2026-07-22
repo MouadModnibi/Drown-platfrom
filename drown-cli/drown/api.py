@@ -60,7 +60,15 @@ def _make_request(method, endpoint, token=None, data=None):
             return False, {
                 "error": "Not found. The app or resource doesn't exist."
             }
-
+        
+        elif response.status_code == 409:
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("error", "already exists")
+            except ValueError:
+                error_msg = "already exists"
+            return False, {"error": error_msg}
+        
         elif response.status_code >= 500:
             return False, {
                 "error": "Server error. Please try again later."

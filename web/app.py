@@ -57,14 +57,44 @@ def get_user_from_token():
         return {'id': user[0], 'username': user[1]}
     return None
 
+def can_access_app(user, app_name):
+    """
+    Check if user can access an app (owns it OR is admin).
+    Works with BOTH session-based and token-based user dicts.
+    
+    Args:
+        user: dict with 'id' key (from get_current_user() OR get_user_from_token())
+        app_name: str
+        
+    Returns:
+        tuple: (can_access: bool, owner_id: int|None, reason: str)
+    """
+    if not user:
+        return False, None, "unauthorized"
+    
+    owner_id = database.get_app_owner(app_name)
+    
+    if owner_id is None:
+        return False, None, "not_found"
+    
+    if owner_id == user['id']:
+        return True, owner_id, "owner"
+    
+    if database.is_user_admin(user['id']):
+        return True, owner_id, "admin"
+    
+    return False, owner_id, "forbidden"
+
 def is_valid_app_name(name):
     """Only allow lowercase letters, numbers, and hyphens, 3-30 chars"""
     return bool(re.match(r'^[a-z0-9]([a-z0-9-]{1,28}[a-z0-9])?$', name))
 
 @app.context_processor
 def inject_user():
-    """Make current_user available in all templates."""
-    return dict(current_user=get_current_user())
+    """Make current_user and is_admin available in all templates."""
+    user = get_current_user()
+    is_admin = database.is_user_admin(user['id']) if user else False
+    return dict(current_user=user, is_admin=is_admin)
 
 
 def calculate_app_age_days(created_at_str):
@@ -214,13 +244,12 @@ def app_detail(app_name):
     """Detailed view of a single app."""
     user = get_current_user()
     
-    # Check ownership
-    owner_id = database.get_app_owner(app_name)
+    # Check ownership (owner OR admin)
+    can_access, owner_id, reason = can_access_app(user, app_name)
     
-    if owner_id is None:
-        return "App not found or not assigned to any user", 404
-    
-    if owner_id != user['id']:
+    if not can_access:
+        if reason == "not_found":
+            return "App not found or not assigned to any user", 404
         return "Forbidden: You don't have access to this app", 403
     
     # Get app info
@@ -341,9 +370,11 @@ def api_app_metrics(app_name):
     """API endpoint for refreshing app metrics."""
     user = get_current_user()
     
-    # Check ownership
-    owner_id = database.get_app_owner(app_name)
-    if owner_id != user['id']:
+    # Check ownership (owner OR admin)
+    can_access, owner_id, reason = can_access_app(user, app_name)
+    if not can_access:
+        if reason == "not_found":
+            return jsonify({'error': 'App not found'}), 404
         return jsonify({'error': 'Forbidden'}), 403
     
     # Batch fetch metrics for performance
@@ -482,11 +513,11 @@ def onboarding_guide(app_name):
     """Onboarding guide after creating an app."""
     user = get_current_user()
     
-    # Verify ownership
-    owner_id = database.get_app_owner(app_name)
-    if owner_id is None:
-        return "App not found", 404
-    if owner_id != user['id']:
+    # Check ownership (owner OR admin)
+    can_access, owner_id, reason = can_access_app(user, app_name)
+    if not can_access:
+        if reason == "not_found":
+            return "App not found", 404
         return "Forbidden", 403
     
     # Get app info
@@ -544,14 +575,15 @@ def api_list_apps():
 
 @app.route('/api/apps/<app_name>/metrics', methods=['GET'])
 def api_app_metrics_v2(app_name):
-    user = get_user_from_token()
+    user = get_user_from_token() or get_current_user()
     if not user:
         return jsonify({'error': 'unauthorized'}), 401
 
-    owner_id = database.get_app_owner(app_name)
-    if owner_id is None:
-        return jsonify({'error': 'app not found'}), 404
-    if owner_id != user['id']:
+    # Check ownership (owner OR admin)
+    can_access, owner_id, reason = can_access_app(user, app_name)
+    if not can_access:
+        if reason == "not_found":
+            return jsonify({'error': 'app not found'}), 404
         return jsonify({'error': 'forbidden'}), 403
 
     replicas_data = database.get_replicas(app_name)
@@ -573,14 +605,15 @@ def api_app_metrics_v2(app_name):
 
 @app.route('/api/apps/<app_name>/scale', methods=['POST'])
 def api_scale_app(app_name):
-    user = get_user_from_token()
+    user = get_user_from_token() or get_current_user()
     if not user:
         return jsonify({'error': 'unauthorized'}), 401
 
-    owner_id = database.get_app_owner(app_name)
-    if owner_id is None:
-        return jsonify({'error': 'app not found'}), 404
-    if owner_id != user['id']:
+    # Check ownership (owner OR admin)
+    can_access, owner_id, reason = can_access_app(user, app_name)
+    if not can_access:
+        if reason == "not_found":
+            return jsonify({'error': 'app not found'}), 404
         return jsonify({'error': 'forbidden'}), 403
 
     data = request.get_json(silent=True) or {}
@@ -603,14 +636,15 @@ def api_scale_app(app_name):
 
 @app.route('/api/apps/<app_name>/logs', methods=['GET'])
 def api_app_logs(app_name):
-    user = get_user_from_token()
+    user = get_user_from_token() or get_current_user()
     if not user:
         return jsonify({'error': 'unauthorized'}), 401
 
-    owner_id = database.get_app_owner(app_name)
-    if owner_id is None:
-        return jsonify({'error': 'app not found'}), 404
-    if owner_id != user['id']:
+    # Check ownership (owner OR admin)
+    can_access, owner_id, reason = can_access_app(user, app_name)
+    if not can_access:
+        if reason == "not_found":
+            return jsonify({'error': 'app not found'}), 404
         return jsonify({'error': 'forbidden'}), 403
 
     replicas = database.get_replicas(app_name)
@@ -681,11 +715,11 @@ def api_link_app(app_name):
     if not user:
         return jsonify({'error': 'unauthorized'}), 401
     
-    # Verify ownership
-    owner_id = database.get_app_owner(app_name)
-    if owner_id is None:
-        return jsonify({'error': 'app not found'}), 404
-    if owner_id != user['id']:
+    # Check ownership (owner OR admin)
+    can_access, owner_id, reason = can_access_app(user, app_name)
+    if not can_access:
+        if reason == "not_found":
+            return jsonify({'error': 'app not found'}), 404
         return jsonify({'error': 'forbidden'}), 403
     
     # Get app info
@@ -736,6 +770,95 @@ def api_register_key():
         return jsonify({'error': f'failed to register key: {str(e)}'}), 500
 
     return jsonify({'message': 'key registered successfully'}), 200
+
+
+# ===== DELETE APP ROUTES =====
+
+@app.route('/app/<app_name>/delete', methods=['POST'])
+@login_required
+def delete_app_route(app_name):
+    """Delete an app (web UI)."""
+    user = get_current_user()
+    
+    # Check ownership (owner OR admin)
+    can_access, owner_id, reason = can_access_app(user, app_name)
+    if not can_access:
+        if reason == "not_found":
+            return jsonify({'error': 'App not found'}), 404
+        return jsonify({'error': 'Forbidden'}), 403
+    
+    # Verify the confirmation name matches
+    data = request.get_json(silent=True) or {}
+    confirm_name = data.get('confirm_name', '').strip()
+    
+    if confirm_name != app_name:
+        return jsonify({'error': 'App name confirmation does not match'}), 400
+    
+    # Delete the app
+    from core.scaler import delete_app
+    try:
+        success, replica_count, message = delete_app(app_name)
+        return jsonify({'success': True, 'message': message}), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete app: {str(e)}'}), 500
+
+
+# ===== ADMIN ROUTES =====
+
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    """Admin dashboard showing all apps across all users."""
+    user = get_current_user()
+    
+    # Check if user is admin
+    if not database.is_user_admin(user['id']):
+        return redirect(url_for('index'))
+    
+    # Get all apps with owner information
+    apps_data = database.get_all_apps_with_owners()
+    
+    apps = []
+    for app_name, domain, status, owner_id, owner_username, created_at in apps_data:
+        replicas = database.get_replicas(app_name)
+        apps.append({
+            'name': app_name,
+            'domain': domain,
+            'status': status,
+            'owner_id': owner_id,
+            'owner_username': owner_username or 'Unassigned',
+            'replica_count': len(replicas),
+            'created_at': created_at
+        })
+    
+    return render_template('admin.html', apps=apps)
+
+
+@app.route('/admin/delete/<app_name>', methods=['POST'])
+@login_required
+def admin_delete_app(app_name):
+    """Admin delete action (can delete any app)."""
+    user = get_current_user()
+    
+    # Check if user is admin
+    if not database.is_user_admin(user['id']):
+        return jsonify({'error': 'Forbidden: Admin access required'}), 403
+    
+    # Verify the confirmation name matches
+    data = request.get_json(silent=True) or {}
+    confirm_name = data.get('confirm_name', '').strip()
+    
+    if confirm_name != app_name:
+        return jsonify({'error': 'App name confirmation does not match'}), 400
+    
+    # Delete the app
+    from core.scaler import delete_app
+    try:
+        success, replica_count, message = delete_app(app_name)
+        return jsonify({'success': True, 'message': message}), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete app: {str(e)}'}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

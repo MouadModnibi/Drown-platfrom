@@ -8,12 +8,27 @@
 </a>
 
 <div class="page-header">
-    <h1 class="page-title">{{ app.name }}</h1>
-    {% if app.domain %}
-    <p class="page-subtitle">
-        <a href="https://{{ app.domain }}" target="_blank">{{ app.domain }} ↗</a>
-    </p>
-    {% endif %}
+    <div>
+        <h1 class="page-title">{{ app.name }}</h1>
+        {% if app.domain %}
+        <p class="page-subtitle">
+            <a href="https://{{ app.domain }}" target="_blank">{{ app.domain }} ↗</a>
+        </p>
+        {% endif %}
+    </div>
+    <button onclick="openDeleteModal()" style="
+        padding: 10px 20px;
+        background: rgba(248, 81, 73, 0.15);
+        border: 1px solid rgba(248, 81, 73, 0.3);
+        border-radius: 6px;
+        color: #F85149;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+    " onmouseover="this.style.background='rgba(248, 81, 73, 0.25)'" onmouseout="this.style.background='rgba(248, 81, 73, 0.15)'">
+        Delete App
+    </button>
 </div>
 
 <!-- App Info Section -->
@@ -192,5 +207,177 @@
             console.error('Failed to refresh metrics:', error);
         }
     }, 30000);
+
+    // ===== DELETE MODAL =====
+    const APP_NAME = '{{ app.name }}';
+
+    function openDeleteModal() {
+        document.getElementById('delete-modal').style.display = 'flex';
+        document.getElementById('confirm-name-input').value = '';
+        document.getElementById('delete-confirm-btn').disabled = true;
+        document.getElementById('delete-confirm-btn').style.opacity = '0.4';
+        document.getElementById('delete-confirm-btn').style.cursor = 'not-allowed';
+        setTimeout(() => document.getElementById('confirm-name-input').focus(), 100);
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('delete-modal').style.display = 'none';
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeDeleteModal();
+    });
+
+    document.getElementById('confirm-name-input').addEventListener('input', function() {
+        const btn = document.getElementById('delete-confirm-btn');
+        if (this.value === APP_NAME) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+        } else {
+            btn.disabled = true;
+            btn.style.opacity = '0.4';
+            btn.style.cursor = 'not-allowed';
+        }
+    });
+
+    async function confirmDelete() {
+        const confirmName = document.getElementById('confirm-name-input').value;
+        if (confirmName !== APP_NAME) return;
+
+        const btn = document.getElementById('delete-confirm-btn');
+        btn.textContent = 'Deleting...';
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(`/app/${APP_NAME}/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirm_name: confirmName })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                window.location.href = '/';
+            } else {
+                document.getElementById('delete-error').textContent = data.error || 'Failed to delete app';
+                document.getElementById('delete-error').style.display = 'block';
+                btn.textContent = 'Delete this app';
+                btn.disabled = false;
+            }
+        } catch (err) {
+            document.getElementById('delete-error').textContent = 'Network error — please try again';
+            document.getElementById('delete-error').style.display = 'block';
+            btn.textContent = 'Delete this app';
+            btn.disabled = false;
+        }
+    }
 </script>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" style="
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+">
+    <div style="
+        background: #161B22;
+        border: 1px solid rgba(248, 81, 73, 0.3);
+        border-radius: 12px;
+        padding: 32px;
+        max-width: 480px;
+        width: 90%;
+        position: relative;
+    ">
+        <button onclick="closeDeleteModal()" style="
+            position: absolute; top: 16px; right: 16px;
+            background: none; border: none; color: #8B949E;
+            font-size: 20px; cursor: pointer; line-height: 1;
+        ">✕</button>
+
+        <div style="font-size: 32px; margin-bottom: 12px;">⚠️</div>
+        <h2 style="font-size: 20px; font-weight: 600; color: #F85149; margin: 0 0 8px 0;">Delete {{ app.name }}</h2>
+        <p style="color: #8B949E; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+            This action is <strong style="color: #E6EDF3;">permanent and cannot be undone</strong>. 
+            All replicas and containers will be stopped and removed. 
+            The git repository on the server will remain but the app will be unregistered.
+        </p>
+
+        <div style="background: rgba(248, 81, 73, 0.08); border: 1px solid rgba(248, 81, 73, 0.2); border-radius: 6px; padding: 12px; margin-bottom: 20px; font-size: 13px; color: #8B949E;">
+            This will permanently delete the <strong style="color: #E6EDF3;">{{ app.name }}</strong> app, 
+            including all <strong style="color: #E6EDF3;">{{ replicas|length }} replica(s)</strong>.
+        </div>
+
+        <label style="display: block; font-size: 13px; color: #8B949E; margin-bottom: 8px;">
+            To confirm, type <code style="background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; color: #E6EDF3;">{{ app.name }}</code> below:
+        </label>
+        <input 
+            id="confirm-name-input"
+            type="text" 
+            placeholder="{{ app.name }}"
+            style="
+                width: 100%;
+                padding: 10px 14px;
+                background: rgba(255,255,255,0.05);
+                border: 1px solid rgba(255,255,255,0.15);
+                border-radius: 6px;
+                color: #E6EDF3;
+                font-size: 14px;
+                font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+                box-sizing: border-box;
+                margin-bottom: 8px;
+            "
+        >
+
+        <div id="delete-error" style="display: none; color: #F85149; font-size: 13px; margin-bottom: 12px; padding: 8px 12px; background: rgba(248,81,73,0.1); border-radius: 4px;"></div>
+
+        <div style="display: flex; gap: 12px; margin-top: 12px;">
+            <button 
+                id="delete-confirm-btn"
+                onclick="confirmDelete()" 
+                disabled
+                style="
+                    flex: 1;
+                    padding: 10px 20px;
+                    background: #B91C1C;
+                    border: none;
+                    border-radius: 6px;
+                    color: white;
+                    font-weight: 600;
+                    font-size: 14px;
+                    cursor: not-allowed;
+                    opacity: 0.4;
+                    transition: all 0.2s;
+                "
+            >
+                Delete this app
+            </button>
+            <button 
+                onclick="closeDeleteModal()" 
+                style="
+                    flex: 1;
+                    padding: 10px 20px;
+                    background: rgba(255,255,255,0.08);
+                    border: 1px solid rgba(255,255,255,0.15);
+                    border-radius: 6px;
+                    color: #E6EDF3;
+                    font-weight: 600;
+                    font-size: 14px;
+                    cursor: pointer;
+                    transition: background 0.2s;
+                "
+                onmouseover="this.style.background='rgba(255,255,255,0.12)'"
+                onmouseout="this.style.background='rgba(255,255,255,0.08)'"
+            >
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}
