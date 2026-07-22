@@ -1,4 +1,37 @@
 /**
+ * Drown Platform — theme toggle (light/dark mode)
+ * Persists preference in localStorage; defaults to dark.
+ */
+(function () {
+    const STORAGE_KEY = 'drown-theme';
+    const html = document.documentElement;
+
+    function applyTheme(theme) {
+        html.setAttribute('data-theme', theme);
+    }
+
+    function getStored() {
+        try { return localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }
+    }
+
+    function store(theme) {
+        try { localStorage.setItem(STORAGE_KEY, theme); } catch (e) {}
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const btn = document.getElementById('themeToggle');
+        if (!btn) return;
+
+        btn.addEventListener('click', function () {
+            const current = html.getAttribute('data-theme') || 'dark';
+            const next = current === 'dark' ? 'light' : 'dark';
+            applyTheme(next);
+            store(next);
+        });
+    });
+})();
+
+/**
  * Drown Platform — ambient ocean visualization
  * Canvas: water gradient, surface ripples, subtle splashes
  * SVG/HTML layers handled in template + CSS

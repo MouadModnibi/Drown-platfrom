@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Drown Platform — Deploy in seconds{% endblock %}
+
+{% block content %}
+<div class="landing-wrapper">
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-inner">
+            <span class="hero-badge">Self-hosted PaaS</span>
+            <h1 class="hero-title">
+                Deploy apps.<br>
+                <span>Skip the infrastructure.</span>
+            </h1>
+            <p class="hero-description">
+                Drown Platform is a self-hosted deployment platform that gets your code live
+                from a git push. No Kubernetes configs, no cloud dashboards — just push and ship.
+            </p>
+            <div class="hero-actions">
+                <a href="{{ url_for('register') }}" class="btn-hero-primary">Get started — it's free</a>
+                <a href="{{ url_for('login') }}" class="btn-hero-secondary">Sign in</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features-section">
+        <div class="features-inner">
+            <p class="section-eyebrow">Everything you need</p>
+            <h2 class="section-heading">Your platform, your rules</h2>
+            <p class="section-sub">Built for developers who want Heroku-style convenience without the Heroku bill.</p>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <span class="feature-icon">🚀</span>
+                    <h3 class="feature-title">Git push deploys</h3>
+                    <p class="feature-text">Add a remote, push your branch. Buildpacks detect your language and build automatically — no Dockerfile required.</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">⚡</span>
+                    <h3 class="feature-title">Instant scaling</h3>
+                    <p class="feature-text">Scale replicas up or down with a single command or from the dashboard. Traffic is balanced across all healthy containers.</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">🔒</span>
+                    <h3 class="feature-title">Automatic HTTPS</h3>
+                    <p class="feature-text">Every app gets its own subdomain with TLS provisioned automatically via Caddy. No cert management, ever.</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">📊</span>
+                    <h3 class="feature-title">Live metrics</h3>
+                    <p class="feature-text">CPU, memory, and container status for every replica in real time, right in the dashboard — no third-party tools needed.</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">🔑</span>
+                    <h3 class="feature-title">Environment config</h3>
+                    <p class="feature-text">Set and manage environment variables per app from the dashboard or CLI. Secrets stay secret — values are masked by default.</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">🖥️</span>
+                    <h3 class="feature-title">CLI-first workflow</h3>
+                    <p class="feature-text">The <code>drown</code> CLI mirrors the web dashboard — login, create, scale, and read logs without leaving your terminal.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="steps-section">
+        <div class="steps-inner">
+            <p class="section-eyebrow">How it works</p>
+            <h2 class="section-heading">From code to live in three steps</h2>
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-number">1</div>
+                    <h3 class="step-title">Create an app</h3>
+                    <p class="step-text">Register, then create a new app from the dashboard or with <code>drown create myapp</code>.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">2</div>
+                    <h3 class="step-title">Push your code</h3>
+                    <p class="step-text">Add the platform as a git remote and push. The build runs automatically using Cloud Native Buildpacks.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">3</div>
+                    <h3 class="step-title">Go live</h3>
+                    <p class="step-text">Your app is live on a public HTTPS subdomain in seconds. Scale, monitor, and iterate from here.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <h2 class="cta-title">Ready to ship?</h2>
+        <p class="cta-sub">Create your account and deploy your first app in under five minutes.</p>
+        <a href="{{ url_for('register') }}" class="btn-hero-primary">Start now — create your app</a>
+    </section>
+
+    <footer class="landing-footer">
+        Drown Platform &mdash; self-hosted PaaS &copy; {{ 2025 }}
+    </footer>
+
+</div>
+{% endblock %}

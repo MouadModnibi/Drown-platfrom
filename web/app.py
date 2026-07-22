@@ -192,9 +192,11 @@ def logout():
 # ===== PROTECTED ROUTES =====
 
 @app.route('/')
-@login_required
 def index():
-    """Homepage showing all apps owned by the current user."""
+    """Landing page for unauthenticated visitors; dashboard for logged-in users."""
+    if 'user_id' not in session:
+        return render_template('landing.html')
+
     user = get_current_user()
     
     # Get apps owned by this user
@@ -535,6 +537,72 @@ def onboarding_guide(app_name):
 def help_page():
     """Help and troubleshooting page."""
     return render_template('help.html')
+
+
+# ===== PROFILE / SETTINGS ROUTE =====
+
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    """User profile and account settings page."""
+    user = get_current_user()
+    username_success = None
+    username_error = None
+    password_success = None
+    password_error = None
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
+        if action == 'update_username':
+            new_username = request.form.get('new_username', '').strip()
+            if not new_username:
+                username_error = "Username is required"
+            elif len(new_username) < 3:
+                username_error = "Username must be at least 3 characters"
+            elif new_username == user['username']:
+                username_error = "That's already your username"
+            elif database.get_user_by_username(new_username):
+                username_error = "Username already taken"
+            else:
+                ok = database.update_username(user['id'], new_username)
+                if ok:
+                    # Update session display name immediately
+                    username_success = f"Username changed to \"{new_username}\""
+                    # Re-fetch user so the template shows the new name
+                    user = get_current_user()
+                else:
+                    username_error = "Username already taken"
+
+        elif action == 'update_password':
+            current_password = request.form.get('current_password', '')
+            new_password = request.form.get('new_password', '')
+            confirm_password = request.form.get('confirm_password', '')
+
+            current_hash = database.get_user_password_hash(user['id'])
+            if not current_hash or not check_password_hash(current_hash, current_password):
+                password_error = "Current password is incorrect"
+            elif not new_password:
+                password_error = "New password is required"
+            elif len(new_password) < 6:
+                password_error = "Password must be at least 6 characters"
+            elif new_password != confirm_password:
+                password_error = "Passwords do not match"
+            else:
+                new_hash = generate_password_hash(new_password)
+                database.update_password(user['id'], new_hash)
+                password_success = "Password updated successfully"
+
+    return render_template(
+        'profile.html',
+        user=user,
+        username_success=username_success,
+        username_error=username_error,
+        password_success=password_success,
+        password_error=password_error,
+    )
+
+
 
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():

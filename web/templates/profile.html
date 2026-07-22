@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Profile — Drown Platform{% endblock %}
+
+{% block content %}
+<div class="profile-layout">
+
+    <div class="page-header">
+        <h1 class="page-title">Profile</h1>
+        <p class="page-subtitle">Manage your account settings</p>
+    </div>
+
+    <!-- Change Username -->
+    <div class="profile-section">
+        <h2 class="profile-section-title">Username</h2>
+        <p class="profile-section-desc">Your current username is <strong>{{ user.username }}</strong>. Changing it will not affect your apps or API token.</p>
+
+        {% if username_success %}
+        <div class="inline-alert success" role="alert">{{ username_success }}</div>
+        {% endif %}
+        {% if username_error %}
+        <div class="inline-alert error" role="alert">{{ username_error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('profile') }}">
+            <input type="hidden" name="action" value="update_username">
+            <div class="form-group">
+                <label for="new_username">New username</label>
+                <input
+                    type="text"
+                    id="new_username"
+                    name="new_username"
+                    class="form-input"
+                    placeholder="{{ user.username }}"
+                    minlength="3"
+                    maxlength="50"
+                    autocomplete="username"
+                    required
+                >
+                <span class="form-hint">At least 3 characters. Letters, numbers, and underscores.</span>
+            </div>
+            <button type="submit" class="btn btn-primary">Update username</button>
+        </form>
+    </div>
+
+    <!-- Change Password -->
+    <div class="profile-section">
+        <h2 class="profile-section-title">Password</h2>
+        <p class="profile-section-desc">Choose a strong password with at least 6 characters.</p>
+
+        {% if password_success %}
+        <div class="inline-alert success" role="alert">{{ password_success }}</div>
+        {% endif %}
+        {% if password_error %}
+        <div class="inline-alert error" role="alert">{{ password_error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('profile') }}">
+            <input type="hidden" name="action" value="update_password">
+            <div class="form-group">
+                <label for="current_password">Current password</label>
+                <input
+                    type="password"
+                    id="current_password"
+                    name="current_password"
+                    class="form-input"
+                    placeholder="Enter your current password"
+                    autocomplete="current-password"
+                    required
+                >
+            </div>
+            <div class="form-group">
+                <label for="new_password">New password</label>
+                <input
+                    type="password"
+                    id="new_password"
+                    name="new_password"
+                    class="form-input"
+                    placeholder="At least 6 characters"
+                    minlength="6"
+                    autocomplete="new-password"
+                    required
+                >
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">Confirm new password</label>
+                <input
+                    type="password"
+                    id="confirm_password"
+                    name="confirm_password"
+                    class="form-input"
+                    placeholder="Repeat new password"
+                    minlength="6"
+                    autocomplete="new-password"
+                    required
+                >
+            </div>
+            <button type="submit" class="btn btn-primary">Update password</button>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

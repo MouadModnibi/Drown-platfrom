@@ -341,3 +341,36 @@ def get_all_apps_with_owners():
     apps = c.fetchall()
     conn.close()
     return apps
+
+
+def update_username(user_id, new_username):
+    """Update a user's username. Returns True on success, False if name is taken."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute('UPDATE users SET username=? WHERE id=?', (new_username, user_id))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+
+def update_password(user_id, new_password_hash):
+    """Update a user's password hash."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('UPDATE users SET password_hash=? WHERE id=?', (new_password_hash, user_id))
+    conn.commit()
+    conn.close()
+
+
+def get_user_password_hash(user_id):
+    """Get a user's current password hash for verification."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('SELECT password_hash FROM users WHERE id=?', (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else None
