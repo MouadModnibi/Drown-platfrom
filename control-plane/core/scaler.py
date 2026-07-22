@@ -28,12 +28,21 @@ def _scale_up(app_name, image_name, current, desired_count):
     existing_nums = [r[0] for r in current]
     next_num = max(existing_nums, default=0) + 1
 
-    while len(existing_nums) + 1 <= desired_count if False else len(get_replicas(app_name)) < desired_count:
+    while len(get_replicas(app_name)) < desired_count:
         port = get_free_port()
         container_name = f"{app_name}-{next_num}"
 
         container_id = run_container(image_name, container_name, port, env_vars)
-        wait_until_ready(port)
+
+        try:
+            wait_until_ready(port)
+        except Exception as e:
+            logging.error(f"Health check failed for {container_name}, cleaning up: {e}")
+            stop_container(container_name)
+            raise RuntimeError(
+                f"Deployment failed: '{app_name}' did not respond on port 8080 "
+                f"within the expected time. The container has been removed."
+            ) from e
 
         add_replica(app_name, next_num, port, container_id)
         logging.info(f"✓ Replica {next_num} created for {app_name} on port {port}")
@@ -51,6 +60,7 @@ def _scale_down(app_name, current, desired_count):
         stop_container(container_name)
         remove_replica(app_name, replica_num)
         logging.info(f"✓ Replica {replica_num} removed for {app_name}")
+
 def redeploy_replicas(app_name, image_name):
     """Force-restart all existing replicas with the latest image.
     If no replicas exist yet, create the first one."""
@@ -69,7 +79,16 @@ def redeploy_replicas(app_name, image_name):
 
         stop_container(container_name)
         new_container_id = run_container(image_name, container_name, port, env_vars)
-        wait_until_ready(port)
+
+        try:
+            wait_until_ready(port)
+        except Exception as e:
+            logging.error(f"Health check failed for {container_name}, cleaning up: {e}")
+            stop_container(container_name)
+            raise RuntimeError(
+                f"Redeploy failed: '{app_name}' did not respond on port 8080 "
+                f"within the expected time. The container has been removed."
+            ) from e
 
         add_replica(app_name, replica_num, port, new_container_id)
         logging.info(f"✓ Replica {replica_num} redeployed on port {port}")
