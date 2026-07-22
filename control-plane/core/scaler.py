@@ -77,7 +77,7 @@ def redeploy_replicas(app_name, image_name):
 
 def delete_app(app_name):
     """
-    Delete an app completely: stop containers, remove replicas, regenerate caddy.
+    Delete an app completely: stop containers, remove all DB records, regenerate caddy.
     
     Args:
         app_name: str - name of app to delete
@@ -86,7 +86,7 @@ def delete_app(app_name):
         tuple: (success: bool, replica_count: int, message: str)
     """
     import subprocess
-    from core.database import remove_all_replicas
+    from core.database import get_replicas, remove_app
     
     # Get replicas before deletion
     replicas = get_replicas(app_name)
@@ -97,8 +97,8 @@ def delete_app(app_name):
         container_name = f"{app_name}-{replica_num}"
         subprocess.run(["docker", "rm", "-f", container_name], capture_output=True)
     
-    # Remove database records
-    remove_all_replicas(app_name)
+    # Remove ALL database records: replicas, configs, deployments, app row
+    remove_app(app_name)
     
     # Regenerate Caddy config
     regenerate_caddy_config()

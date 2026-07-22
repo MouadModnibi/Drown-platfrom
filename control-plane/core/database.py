@@ -171,6 +171,18 @@ def remove_all_replicas(app_name):
     conn.close()
 
 
+def remove_app(app_name):
+    """Remove the app record and all related data from the database."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('DELETE FROM replicas WHERE app_name=?', (app_name,))
+    c.execute('DELETE FROM app_configs WHERE app_name=?', (app_name,))
+    c.execute('DELETE FROM deployments WHERE app_name=?', (app_name,))
+    c.execute('DELETE FROM apps WHERE app_name=?', (app_name,))
+    conn.commit()
+    conn.close()
+
+
 # ---------------- configs ----------------
 
 def get_configs(app_name):
