@@ -34,7 +34,18 @@ def get_free_port():
 
 def build_image(app_name, repo_path, builder=DEFAULT_BUILDER):
     logging.info(f"Building image for {app_name}...")
-    run_command(["pack", "build", app_name, "--builder", builder, "--path", repo_path])
+    try:
+        run_command(["pack", "build", app_name, "--builder", builder, "--path", repo_path])
+    except RuntimeError as e:
+        raise RuntimeError(
+            f"Build failed for '{app_name}'.\n"
+            f"Details: {str(e)[-500:]}\n\n"
+            f"Common causes:\n"
+            f"  - Missing or invalid package.json / requirements.txt\n"
+            f"  - No recognizable start command for your language/framework\n"
+            f"  - For frontend frameworks (React/Vite/Expo web): you likely "
+            f"need a 'serve' package + a 'heroku-postbuild' build step"
+        ) from e
     logging.info("Image built successfully.")
 
 
@@ -61,7 +72,7 @@ def run_container(image_name, container_name, port, env_vars=None):
     return container_id
 
 
-def wait_until_ready(port, retries=20, delay=2):
+def wait_until_ready(port, container_name=None, retries=20, delay=2):
     logging.info("Waiting for application...")
     for attempt in range(retries):
         try:
@@ -73,7 +84,24 @@ def wait_until_ready(port, retries=20, delay=2):
             pass
         time.sleep(delay)
 
-    raise RuntimeError(f"Application failed health check after {retries * delay} seconds.")
+    log_snippet = ""
+    if container_name:
+        try:
+            logs = get_container_logs(container_name, follow=False)
+            log_snippet = "\n".join(logs.strip().split("\n")[-15:])
+        except Exception:
+            log_snippet = "(could not retrieve logs)"
+
+    raise RuntimeError(
+        f"Application failed health check after {retries * delay} seconds "
+        f"(no response on port 8080).\n\n"
+        f"Last container logs:\n{log_snippet}\n\n"
+        f"Common causes:\n"
+        f"  - App is running a DEV server instead of a production server "
+        f"(e.g. 'npm start' running react-scripts/expo/vite dev mode)\n"
+        f"  - App isn't binding to port 8080 (check your Procfile/start script)\n"
+        f"  - Missing dependency (Flask/gunicorn, serve, etc.)"
+    )
 
 
 def get_container_metrics(container_name):

@@ -35,7 +35,7 @@ def _scale_up(app_name, image_name, current, desired_count):
         container_id = run_container(image_name, container_name, port, env_vars)
 
         try:
-            wait_until_ready(port)
+            wait_until_ready(port, container_name=container_name)
         except Exception as e:
             logging.error(f"Health check failed for {container_name}, cleaning up: {e}")
             stop_container(container_name)
@@ -81,7 +81,7 @@ def redeploy_replicas(app_name, image_name):
         new_container_id = run_container(image_name, container_name, port, env_vars)
 
         try:
-            wait_until_ready(port)
+            wait_until_ready(port, container_name=container_name)
         except Exception as e:
             logging.error(f"Health check failed for {container_name}, cleaning up: {e}")
             stop_container(container_name)
