@@ -818,22 +818,42 @@ def api_register_key():
     if not public_key or not public_key.startswith(('ssh-ed25519', 'ssh-rsa')):
         return jsonify({'error': 'invalid public key format'}), 400
 
-    # Prevent newline injection into authorized_keys
     if '\n' in public_key or '\r' in public_key:
         return jsonify({'error': 'invalid public key format'}), 400
+
+    # Extract just the key material (second field) to match existing entries
+    # regardless of which user/command= prefix they currently have
+    key_parts = public_key.split()
+    if len(key_parts) < 2:
+        return jsonify({'error': 'invalid public key format'}), 400
+    key_material = key_parts[1]
 
     authorized_keys_path = "/home/ubuntu/.ssh/authorized_keys"
     wrapper_script = "/home/ubuntu/mini-heroku/control-plane/git-shell-wrapper.sh"
 
-    entry = (
-        f'command="{wrapper_script} {user["id"]}",'
-        f'no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty '
-        f'{public_key}\n'
-    )
-
     try:
-        with open(authorized_keys_path, "a") as f:
-            f.write(entry)
+        # Read existing entries, filtering out ANY line that contains this
+        # exact key material (regardless of which user it was tied to before)
+        existing_lines = []
+        if os.path.exists(authorized_keys_path):
+            with open(authorized_keys_path, "r") as f:
+                existing_lines = f.readlines()
+
+        filtered_lines = [
+            line for line in existing_lines
+            if key_material not in line
+        ]
+
+        new_entry = (
+            f'command="{wrapper_script} {user["id"]}",'
+            f'no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty '
+            f'{public_key}\n'
+        )
+        filtered_lines.append(new_entry)
+
+        with open(authorized_keys_path, "w") as f:
+            f.writelines(filtered_lines)
+
     except Exception as e:
         return jsonify({'error': f'failed to register key: {str(e)}'}), 500
 
