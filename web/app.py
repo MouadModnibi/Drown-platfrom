@@ -622,6 +622,46 @@ def api_login():
 
     return jsonify({'token': token, 'username': user[1]}), 200
 
+
+@app.route('/api/auth/register', methods=['POST'])
+def api_register():
+    data = request.get_json(silent=True) or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+
+    if not username or not password:
+        return jsonify({'error': 'username and password required'}), 400
+    if len(username) < 3:
+        return jsonify({'error': 'username must be at least 3 characters'}), 400
+    if len(password) < 6:
+        return jsonify({'error': 'password must be at least 6 characters'}), 400
+    if database.get_user_by_username(username):
+        return jsonify({'error': 'username already taken'}), 409
+
+    password_hash = generate_password_hash(password)
+    user_id = database.create_user(username, password_hash)
+
+    token = secrets.token_hex(32)
+    database.set_user_token(user_id, token)
+
+    return jsonify({'token': token, 'username': username, 'id': user_id}), 201
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def api_auth_me():
+    user = get_user_from_token() or get_current_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    is_admin = database.is_user_admin(user['id'])
+    return jsonify({
+        'user': {
+            'id': user['id'],
+            'username': user['username'],
+            'is_admin': is_admin
+        }
+    }), 200
+
 @app.route('/api/apps', methods=['GET'])
 def api_list_apps():
     user = get_user_from_token()
@@ -946,6 +986,173 @@ def admin_delete_app(app_name):
         return jsonify({'success': True, 'message': message}), 200
     except Exception as e:
         return jsonify({'error': f'Failed to delete app: {str(e)}'}), 500
+
+
+@app.route('/api/admin/apps', methods=['GET'])
+def api_admin_apps():
+    """Admin-only endpoint returning all apps and owners across the platform."""
+    user = get_user_from_token() or get_current_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    if not database.is_user_admin(user['id']):
+        return jsonify({'error': 'forbidden'}), 403
+
+    apps_data = database.get_all_apps_with_owners()
+    apps = []
+    for app_name, domain, status, owner_id, owner_username, created_at in apps_data:
+        replicas = database.get_replicas(app_name)
+        apps.append({
+            'name': app_name,
+            'domain': domain,
+            'status': status,
+            'owner_id': owner_id,
+            'owner_username': owner_username or 'Unassigned',
+            'replica_count': len(replicas),
+            'created_at': created_at
+        })
+
+    return jsonify({'apps': apps}), 200
+
+
+@app.route('/api/apps/<app_name>', methods=['DELETE'])
+@app.route('/api/apps/<app_name>/delete', methods=['DELETE', 'POST'])
+def api_delete_app(app_name):
+    """Delete an app via token-authenticated API (owner or admin allowed)."""
+    user = get_user_from_token() or get_current_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    can_access, owner_id, reason = can_access_app(user, app_name)
+    if not can_access:
+        if reason == "not_found":
+            return jsonify({'error': 'app not found'}), 404
+        return jsonify({'error': 'forbidden'}), 403
+
+    data = request.get_json(silent=True) or {}
+    confirm_name = data.get('confirm_name', '').strip()
+    if confirm_name != app_name:
+        return jsonify({'error': 'app name confirmation does not match'}), 400
+
+    from core.scaler import delete_app
+    try:
+        success, replica_count, message = delete_app(app_name)
+        return jsonify({'success': True, 'message': message}), 200
+    except Exception as e:
+        return jsonify({'error': f'failed to delete app: {str(e)}'}), 500
+
+
+@app.route('/api/apps/<app_name>/deployments', methods=['GET'])
+def api_app_deployments(app_name):
+    """Get deployment history for an app."""
+    user = get_user_from_token() or get_current_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    can_access, owner_id, reason = can_access_app(user, app_name)
+    if not can_access:
+        if reason == "not_found":
+            return jsonify({'error': 'app not found'}), 404
+        return jsonify({'error': 'forbidden'}), 403
+
+    deployments_data = database.get_deployment_history(app_name, limit=10)
+    deployments = []
+    for status, message, created_at in deployments_data:
+        deployments.append({
+            'status': status,
+            'message': message,
+            'created_at': created_at
+        })
+
+    return jsonify({'app': app_name, 'deployments': deployments}), 200
+
+
+@app.route('/api/apps/<app_name>/config', methods=['GET', 'POST', 'DELETE'])
+def api_app_config(app_name):
+    """Manage environment configuration keys/values for an app."""
+    user = get_user_from_token() or get_current_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    can_access, owner_id, reason = can_access_app(user, app_name)
+    if not can_access:
+        if reason == "not_found":
+            return jsonify({'error': 'app not found'}), 404
+        return jsonify({'error': 'forbidden'}), 403
+
+    if request.method == 'GET':
+        configs_data = database.get_configs(app_name)
+        configs = [{'key': key, 'value': value} for key, value in configs_data]
+        return jsonify({'app': app_name, 'configs': configs}), 200
+
+    elif request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        key = data.get('key', '').strip()
+        value = data.get('value', '')
+        if not key:
+            return jsonify({'error': 'config key is required'}), 400
+        database.set_config(app_name, key, value)
+        configs_data = database.get_configs(app_name)
+        configs = [{'key': k, 'value': v} for k, v in configs_data]
+        return jsonify({'app': app_name, 'configs': configs}), 200
+
+    elif request.method == 'DELETE':
+        data = request.get_json(silent=True) or {}
+        key = data.get('key', '').strip()
+        if not key:
+            return jsonify({'error': 'config key is required'}), 400
+        database.unset_config(app_name, key)
+        configs_data = database.get_configs(app_name)
+        configs = [{'key': k, 'value': v} for k, v in configs_data]
+        return jsonify({'app': app_name, 'configs': configs}), 200
+
+
+@app.route('/api/user/profile', methods=['PUT', 'POST'])
+def api_user_profile():
+    """Update profile settings (username or password)."""
+    user = get_user_from_token() or get_current_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    data = request.get_json(silent=True) or {}
+    action = data.get('action')
+
+    if action == 'update_username':
+        new_username = data.get('new_username', '').strip()
+        if not new_username:
+            return jsonify({'error': 'new_username is required'}), 400
+        if len(new_username) < 3:
+            return jsonify({'error': 'username must be at least 3 characters'}), 400
+        if new_username == user['username']:
+            return jsonify({'error': 'that is already your username'}), 400
+        if database.get_user_by_username(new_username):
+            return jsonify({'error': 'username already taken'}), 409
+
+        ok = database.update_username(user['id'], new_username)
+        if ok:
+            return jsonify({'message': f'username updated to {new_username}', 'username': new_username}), 200
+        else:
+            return jsonify({'error': 'username already taken'}), 409
+
+    elif action == 'update_password':
+        current_password = data.get('current_password', '')
+        new_password = data.get('new_password', '')
+
+        if not current_password or not new_password:
+            return jsonify({'error': 'current_password and new_password required'}), 400
+        if len(new_password) < 6:
+            return jsonify({'error': 'new password must be at least 6 characters'}), 400
+
+        current_hash = database.get_user_password_hash(user['id'])
+        if not current_hash or not check_password_hash(current_hash, current_password):
+            return jsonify({'error': 'current password is incorrect'}), 400
+
+        new_hash = generate_password_hash(new_password)
+        database.update_password(user['id'], new_hash)
+        return jsonify({'message': 'password updated successfully'}), 200
+
+    else:
+        return jsonify({'error': 'invalid action'}), 400
 
 
 if __name__ == '__main__':
