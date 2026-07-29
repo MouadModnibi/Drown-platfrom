@@ -1,5 +1,0 @@
-nohup: ignoring input
-  File "/home/ubuntu/mini-heroku/web/app.py", line 255
-    except:
-    ^^^^^^
-SyntaxError: invalid syntax
