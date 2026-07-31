@@ -15,6 +15,8 @@ import {
   Copy,
   Check,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { fetchApi, ApiApp } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -22,6 +24,56 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+
+// Individual copy button that tracks its own copied state
+function CopyButton({ text, className = '' }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-400 hover:text-slate-200 transition-all text-xs font-medium ${className}`}
+      title="Copy to clipboard"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? 'Copied!' : 'Copy'}
+    </button>
+  );
+}
+
+// Code block with inline copy button
+function CodeBlock({ code, label }: { code: string; label?: string }) {
+  return (
+    <div className="space-y-1">
+      {label && <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{label}</p>}
+      <div className="flex items-start gap-2">
+        <pre className="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs text-indigo-300 overflow-x-auto whitespace-pre-wrap break-all">
+          {code}
+        </pre>
+        <CopyButton text={code} className="shrink-0 mt-0.5" />
+      </div>
+    </div>
+  );
+}
+
+// Numbered step wrapper
+function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3">
+      <div className="shrink-0 w-7 h-7 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-bold flex items-center justify-center mt-0.5">
+        {n}
+      </div>
+      <div className="flex-1 space-y-2 min-w-0">
+        <p className="text-sm font-semibold text-slate-200">{title}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [apps, setApps] = useState<ApiApp[]>([]);
@@ -37,7 +89,7 @@ export default function DashboardPage() {
     git_remote: string;
     push_instructions: string;
   } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const loadApps = async () => {
     setLoading(true);
@@ -80,12 +132,6 @@ export default function DashboardPage() {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const filteredApps = apps.filter(
     (app) =>
       app.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -113,6 +159,7 @@ export default function DashboardPage() {
               setCreatedResult(null);
               setNewAppName('');
               setCreateError('');
+              setShowAdvanced(false);
               setIsCreateOpen(true);
             }}
           >
@@ -235,38 +282,63 @@ export default function DashboardPage() {
         title={createdResult ? 'App Provisioned Successfully!' : 'Create New Application'}
       >
         {createdResult ? (
-          <div className="space-y-4">
+          <div className="space-y-5">
+            {/* Success banner */}
             <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
               <Check className="w-4 h-4 shrink-0" />
-              <span>Repository &amp; database record created.</span>
+              <span>
+                <span className="font-semibold">{createdResult.app}</span> provisioned at{' '}
+                <span className="font-mono">https://{createdResult.domain}</span>
+              </span>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-slate-400">Git Remote URL</label>
-              <div className="mt-1 flex items-center gap-2">
-                <input
-                  readOnly
-                  value={createdResult.git_remote}
-                  className="w-full font-mono text-xs bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-slate-200"
-                />
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => copyToClipboard(createdResult.push_instructions)}
-                >
-                  {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
+            {/* CLI onboarding steps */}
+            <div className="space-y-5">
+              <Step n={1} title="Install the Drown CLI (if not already)">
+                <CodeBlock code="pip install drown" />
+              </Step>
+
+              <Step n={2} title="Log in to Drown">
+                <CodeBlock code="drown login" />
+              </Step>
+
+              <Step n={3} title="Set up your project (if not already a git repo)">
+                <CodeBlock code={`cd your-project/\ngit init`} />
+              </Step>
+
+              <Step n={4} title={`Connect this app`}>
+                <CodeBlock code={`drown create ${createdResult.app}`} />
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Already created via the dashboard — this command links your local repo to the existing app.
+                </p>
+              </Step>
+
+              <Step n={5} title="Deploy">
+                <CodeBlock code={`git add .\ngit commit -m "Initial commit"\ngit push platform main`} />
+              </Step>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-slate-400">Push Command</label>
-              <div className="mt-1 bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-xs text-indigo-300">
-                {createdResult.push_instructions}
-              </div>
+            {/* Advanced / manual setup toggle */}
+            <div className="border-t border-slate-800 pt-3">
+              <button
+                onClick={() => setShowAdvanced((v) => !v)}
+                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                {showAdvanced
+                  ? <ChevronUp className="w-3.5 h-3.5" />
+                  : <ChevronDown className="w-3.5 h-3.5" />}
+                Advanced: manual git remote setup
+              </button>
+
+              {showAdvanced && (
+                <div className="mt-3 space-y-3 pl-1">
+                  <CodeBlock label="Git remote URL" code={createdResult.git_remote} />
+                  <CodeBlock label="Manual push command" code={createdResult.push_instructions} />
+                </div>
+              )}
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-1">
               <Link href={`/apps/${createdResult.app}`}>
                 <Button onClick={() => setIsCreateOpen(false)}>
                   Go to App Dashboard &rarr;
