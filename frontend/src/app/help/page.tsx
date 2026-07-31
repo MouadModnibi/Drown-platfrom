@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   HelpCircle,
   Search,
@@ -34,23 +33,49 @@ const FAQS: FAQ[] = [
     category: 'Git & Deployment',
     question: 'Git push fails with "Permission denied (publickey)"',
     errorSnippet: 'Permission denied (publickey).\nfatal: Could not read from remote repository.',
-    cause: 'Your local SSH public key has not been registered with your Mini-Heroku account or is not loaded into ssh-agent.',
+    cause:
+      'Your SSH key has not been registered with your account, or the key registered does not match the one your local git client is using.',
     solution: [
-      'Copy your local SSH public key (~/.ssh/id_ed25519.pub or ~/.ssh/id_rsa.pub).',
-      'Paste it into the SSH Key Registration card on this page.',
-      'Test your SSH connection via: ssh -T ubuntu@51.170.134.251',
+      'Run "drown login" again — this re-generates your SSH key if needed and re-registers it with the platform automatically.',
+      'If the problem persists, check that your SSH config has the drown-platform host alias: cat ~/.ssh/config',
+      'Test your connection manually: ssh -T ubuntu@drown-platform',
+      'If you need to register a key manually (advanced), use the toggle below.',
     ],
   },
   {
     id: 'buildpack-fail',
     category: 'Build & Compilation',
     question: 'Deployment fails with "No buildpack detected"',
-    errorSnippet: '-----> Detecting buildpack...\nERROR: Could not detect a valid buildpack for this repository.',
-    cause: 'The Cloud Native Buildpack engine could not identify standard application manifest files (e.g. package.json, requirements.txt, go.mod).',
+    errorSnippet:
+      '-----> Detecting buildpack...\nERROR: Could not detect a valid buildpack for this repository.',
+    cause:
+      'The Cloud Native Buildpack engine could not find a standard application manifest file in your repository root.',
     solution: [
-      'Ensure package.json (for Node.js) or requirements.txt (for Python) exists in the repository root directory.',
-      'Check that your file names are exact (case-sensitive).',
-      'Commit the manifest file to git and re-push: git add package.json && git commit -m "add manifest" && git push platform main',
+      'Ensure package.json (Node.js) or requirements.txt (Python) exists in the root of your repository, not in a subdirectory.',
+      'Check file names are exact and case-correct.',
+      'Commit the manifest file and re-push: git add package.json && git commit -m "add manifest" && git push platform main',
+    ],
+  },
+  {
+    id: 'frontend-config',
+    category: 'Framework-Specific Setup',
+    question: 'Frontend framework (Vite, Next.js, Expo) deploys but the app does not respond / shows no content',
+    errorSnippet:
+      'Deploying Node.js app...\n-----> Build succeeded\nERROR: Application failed to respond on port 8080.',
+    cause:
+      'Buildpacks can automatically detect and run backend apps (Python/Flask, plain Node servers), but frontend frameworks that compile static files need an explicit start command and build hook — otherwise the platform has no server process to run after the build. This is the same requirement real Heroku has for these frameworks.',
+    solution: [
+      '--- Vite / React (Vite) ---',
+      'Run: npm install serve --save',
+      'Add to package.json scripts: "start": "serve -s dist -l 8080"  and  "heroku-postbuild": "vite build"',
+      '(For Create React App use "build" instead of "dist": "serve -s build -l 8080")',
+      '--- Next.js ---',
+      'No extra package needed — Next.js has its own production server.',
+      'Add to package.json scripts: "start": "next start -p 8080"  and  "heroku-postbuild": "next build"',
+      '--- Expo (React Native web export) ---',
+      'Run: npm install serve --save',
+      'Add to package.json scripts: "start": "serve -s dist -l 8080"  and  "heroku-postbuild": "expo export -p web"',
+      'Note: this deploys only the web-compatible version of your Expo app. Native-only libraries may not work correctly in the web build.',
     ],
   },
   {
@@ -58,10 +83,12 @@ const FAQS: FAQ[] = [
     category: 'Runtime & Networking',
     question: 'Container crashes immediately or fails health check',
     errorSnippet: 'Error: listen EADDRINUSE :::3000\n    at Server.setupListenHandle [as _listen2]',
-    cause: 'The application inside the container is attempting to bind to a hardcoded port or 127.0.0.1 instead of reading the dynamic PORT environment variable.',
+    cause:
+      'The application is binding to a hardcoded port or to 127.0.0.1 instead of reading the PORT environment variable injected at runtime.',
     solution: [
-      'In your application server startup code, bind to process.env.PORT || 3000.',
-      'Always bind to host 0.0.0.0 (e.g. app.listen(process.env.PORT, "0.0.0.0")).',
+      'Read the port dynamically: const port = process.env.PORT || 3000',
+      'Always bind to 0.0.0.0: app.listen(port, "0.0.0.0")',
+      'The platform always injects PORT=8080 — make sure your app respects it.',
     ],
   },
   {
@@ -71,23 +98,51 @@ const FAQS: FAQ[] = [
     errorSnippet: 'Container killed by Out-Of-Memory (OOM) killer. Exit Code: 137.',
     cause: 'The container process exceeded the allocated container memory limit.',
     solution: [
-      'Inspect application logs in the App Detail view to detect memory leaks.',
-      'Optimize node memory limits (e.g. NODE_OPTIONS="--max-old-space-size=512").',
+      'Check application logs in the App Detail view for memory leaks or runaway processes.',
+      'For Node.js apps, set NODE_OPTIONS="--max-old-space-size=512" as an environment variable in the app config.',
     ],
   },
 ];
 
+// Reusable copy button with self-contained copied state
+function CopyBtn({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-400 hover:text-slate-200 transition-all text-xs"
+    >
+      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  );
+}
+
+function CodeLine({ code }: { code: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <pre className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 font-mono text-xs text-indigo-300 overflow-x-auto">
+        {code}
+      </pre>
+      <CopyBtn text={code} />
+    </div>
+  );
+}
+
 export default function HelpPage() {
   const [search, setSearch] = useState('');
-  const [expandedId, setExpandedId] = useState<string | null>('ssh-denied');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showManualKey, setShowManualKey] = useState(false);
 
-  // SSH Key Register state
+  // Manual SSH key registration (advanced)
   const [publicKey, setPublicKey] = useState('');
   const [keyLoading, setKeyLoading] = useState(false);
   const [keySuccess, setKeySuccess] = useState('');
   const [keyError, setKeyError] = useState('');
-
-  const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
   const handleRegisterKey = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,12 +150,11 @@ export default function HelpPage() {
     setKeyError('');
 
     if (!publicKey.trim().startsWith('ssh-')) {
-      setKeyError('Invalid public key format. Must start with ssh-rsa or ssh-ed25519');
+      setKeyError('Invalid public key format. Must start with ssh-rsa or ssh-ed25519.');
       return;
     }
 
     setKeyLoading(true);
-
     try {
       const data = await fetchApi<{ message: string }>('/keys/register', {
         method: 'POST',
@@ -113,12 +167,6 @@ export default function HelpPage() {
     } finally {
       setKeyLoading(false);
     }
-  };
-
-  const copyToClipboard = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedSnippet(id);
-    setTimeout(() => setCopiedSnippet(null), 2000);
   };
 
   const filteredFaqs = FAQS.filter(
@@ -137,47 +185,82 @@ export default function HelpPage() {
           Help &amp; Deployment Troubleshooting
         </h1>
         <p className="text-sm text-slate-400 mt-1">
-          Guides, SSH key registration, and solutions for common build &amp; runtime errors
+          Guides and solutions for common build &amp; runtime errors
         </p>
       </div>
 
-      {/* SSH Key Registration Card */}
+      {/* SSH Key Setup Card */}
       <Card className="p-6 border-indigo-500/30 bg-indigo-500/5 space-y-4">
         <div className="flex items-center gap-2 text-indigo-400 font-semibold text-base">
           <Key className="w-5 h-5" />
-          Register SSH Public Key for Git Deployment
+          SSH Key Setup for Git Deployment
         </div>
-        <p className="text-xs text-slate-300">
-          Paste your public key below (`cat ~/.ssh/id_ed25519.pub`) to authenticate git push commands to `ssh://ubuntu@drown-platform`.
+
+        <p className="text-sm text-slate-300">
+          The easiest way to set up SSH access is with the Drown CLI — it handles key generation,
+          registration, and SSH config automatically:
         </p>
 
-        <form onSubmit={handleRegisterKey} className="space-y-3">
-          {keySuccess && (
-            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{keySuccess}</span>
-            </div>
-          )}
-          {keyError && (
-            <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{keyError}</span>
-            </div>
-          )}
+        <div className="space-y-2">
+          <CodeLine code="pip install drown" />
+          <CodeLine code="drown login" />
+        </div>
 
-          <textarea
-            rows={2}
-            placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... user@example.com"
-            value={publicKey}
-            onChange={(e) => setPublicKey(e.target.value)}
-            className="w-full rounded-lg bg-slate-900/90 border border-slate-800 text-slate-100 font-mono text-xs p-3 outline-none focus:border-indigo-500"
-            required
-          />
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Running <span className="font-mono text-slate-300">drown login</span> automatically generates an
+          SSH key at <span className="font-mono text-slate-300">~/.drown/id_ed25519</span> if you don&apos;t
+          already have one, registers the public key with your account, and writes the{' '}
+          <span className="font-mono text-slate-300">Host drown-platform</span> entry to your SSH config —
+          so <span className="font-mono text-slate-300">git push platform main</span> works immediately with
+          no extra steps.
+        </p>
 
-          <Button type="submit" size="sm" isLoading={keyLoading}>
-            Register SSH Key
-          </Button>
-        </form>
+        {/* Advanced: manual key registration toggle */}
+        <div className="border-t border-slate-800/60 pt-3">
+          <button
+            onClick={() => setShowManualKey((v) => !v)}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            {showManualKey ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            Advanced: manually register a public key
+          </button>
+
+          {showManualKey && (
+            <form onSubmit={handleRegisterKey} className="mt-4 space-y-3">
+              <p className="text-xs text-slate-400">
+                Paste your public key below (e.g.{' '}
+                <span className="font-mono text-slate-300">cat ~/.ssh/id_ed25519.pub</span>) to register it
+                manually with your account.
+              </p>
+
+              {keySuccess && (
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{keySuccess}</span>
+                </div>
+              )}
+              {keyError && (
+                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{keyError}</span>
+                </div>
+              )}
+
+              <textarea
+                rows={2}
+                placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... user@example.com"
+                value={publicKey}
+                onChange={(e) => setPublicKey(e.target.value)}
+                className="w-full rounded-lg bg-slate-900/90 border border-slate-800 text-slate-100 font-mono text-xs p-3 outline-none focus:border-indigo-500"
+                required
+              />
+
+              <Button type="submit" size="sm" isLoading={keyLoading}>
+                Register SSH Key
+              </Button>
+            </form>
+          )}
+        </div>
       </Card>
 
       {/* Search Bar */}
@@ -207,8 +290,8 @@ export default function HelpPage() {
                   onClick={() => setExpandedId(isExpanded ? null : faq.id)}
                   className="w-full text-left p-5 flex items-center justify-between gap-4 hover:bg-slate-800/30 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-400 font-mono">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-400 font-mono whitespace-nowrap">
                       {faq.category}
                     </span>
                     <h3 className="text-sm font-semibold text-slate-100">{faq.question}</h3>
@@ -224,7 +307,7 @@ export default function HelpPage() {
                   <div className="px-5 pb-5 pt-2 border-t border-slate-800/80 space-y-4 text-xs">
                     <div>
                       <p className="font-semibold text-slate-400 mb-1">Observed Error Snippet:</p>
-                      <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-rose-300 relative">
+                      <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-rose-300">
                         <pre className="whitespace-pre-wrap">{faq.errorSnippet}</pre>
                       </div>
                     </div>
@@ -235,14 +318,47 @@ export default function HelpPage() {
                     </div>
 
                     <div>
-                      <p className="font-semibold text-slate-400 mb-1">Resolution Steps:</p>
-                      <ol className="list-decimal list-inside space-y-1 text-slate-300">
-                        {faq.solution.map((step, idx) => (
-                          <li key={idx} className="leading-relaxed">
-                            {step}
-                          </li>
-                        ))}
-                      </ol>
+                      <p className="font-semibold text-slate-400 mb-2">Resolution Steps:</p>
+                      {faq.id === 'frontend-config' ? (
+                        // Special rendering for the framework config entry — group by framework
+                        <div className="space-y-4">
+                          {/* Vite / CRA */}
+                          <div className="space-y-2">
+                            <p className="font-semibold text-slate-300">Vite / React (Vite)</p>
+                            <CodeLine code='npm install serve --save' />
+                            <p className="text-slate-400">Add to <span className="font-mono text-slate-300">package.json</span> scripts:</p>
+                            <CodeLine code='"start": "serve -s dist -l 8080"' />
+                            <CodeLine code='"heroku-postbuild": "vite build"' />
+                            <p className="text-slate-500 italic">For Create React App, use <span className="font-mono not-italic text-slate-400">dist</span> → <span className="font-mono not-italic text-slate-400">build</span>: <span className="font-mono not-italic text-slate-400">"serve -s build -l 8080"</span></p>
+                          </div>
+
+                          {/* Next.js */}
+                          <div className="space-y-2 border-t border-slate-800/60 pt-4">
+                            <p className="font-semibold text-slate-300">Next.js</p>
+                            <p className="text-slate-400">No extra package needed — Next.js includes its own production server. Add to <span className="font-mono text-slate-300">package.json</span> scripts:</p>
+                            <CodeLine code='"start": "next start -p 8080"' />
+                            <CodeLine code='"heroku-postbuild": "next build"' />
+                          </div>
+
+                          {/* Expo */}
+                          <div className="space-y-2 border-t border-slate-800/60 pt-4">
+                            <p className="font-semibold text-slate-300">Expo (React Native web export)</p>
+                            <CodeLine code='npm install serve --save' />
+                            <p className="text-slate-400">Add to <span className="font-mono text-slate-300">package.json</span> scripts:</p>
+                            <CodeLine code='"start": "serve -s dist -l 8080"' />
+                            <CodeLine code='"heroku-postbuild": "expo export -p web"' />
+                            <p className="text-slate-500 italic">This deploys the web-compatible version only. Native-only libraries may not work in the web build.</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <ol className="list-decimal list-inside space-y-1 text-slate-300">
+                          {faq.solution.map((step, idx) => (
+                            <li key={idx} className="leading-relaxed">
+                              {step}
+                            </li>
+                          ))}
+                        </ol>
+                      )}
                     </div>
                   </div>
                 )}

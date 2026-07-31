@@ -1,4 +1,5 @@
 import logging
+import os
 
 from core.config import MAX_REPLICAS_PER_APP
 from core.database import get_replicas, add_replica, remove_replica, get_configs
@@ -118,6 +119,12 @@ def delete_app(app_name):
     
     # Remove ALL database records: replicas, configs, deployments, app row
     remove_app(app_name)
+    
+    # Remove the bare git repository from disk
+    import shutil
+    repo_path = f"/home/ubuntu/git-hook-test/{app_name}.git"
+    if os.path.exists(repo_path):
+        shutil.rmtree(repo_path)
     
     # Regenerate Caddy config
     regenerate_caddy_config()

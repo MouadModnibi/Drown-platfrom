@@ -23,10 +23,16 @@ export const Navbar: React.FC = () => {
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      setUser(null);
-      router.push('/login');
     } catch (err) {
       console.error('Logout error:', err);
+    } finally {
+      // Clear client-side user state immediately so the nav re-renders
+      setUser(null);
+      // router.refresh() busts the Next.js server-component cache so the
+      // middleware sees the expired cookie on the very next request.
+      // router.push then navigates to /login with a full middleware re-check.
+      router.refresh();
+      router.push('/login');
     }
   };
 
