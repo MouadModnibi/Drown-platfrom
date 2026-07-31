@@ -1,40 +1,16 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Server, Sun, Moon, LogOut, User, Shield, HelpCircle, LayoutDashboard } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
-import { fetchApi, ApiUser } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth-context';
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
-  const router = useRouter();
   const { theme, toggleTheme } = useTheme();
-  const [user, setUser] = useState<ApiUser | null>(null);
-
-  useEffect(() => {
-    // Check if user is logged in
-    fetchApi<{ user: ApiUser }>('/auth/me')
-      .then((data) => setUser(data.user))
-      .catch(() => setUser(null));
-  }, [pathname]);
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } catch (err) {
-      console.error('Logout error:', err);
-    } finally {
-      // Clear client-side user state immediately so the nav re-renders
-      setUser(null);
-      // router.refresh() busts the Next.js server-component cache so the
-      // middleware sees the expired cookie on the very next request.
-      // router.push then navigates to /login with a full middleware re-check.
-      router.refresh();
-      router.push('/login');
-    }
-  };
+  const { user, logout } = useAuth();
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
@@ -56,12 +32,14 @@ export const Navbar: React.FC = () => {
           <div className="flex flex-col">
             <span className="font-bold text-base tracking-tight text-slate-100 flex items-center gap-1.5">
               mini-heroku
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">v2.0</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">
+                v2.0
+              </span>
             </span>
           </div>
         </Link>
 
-        {/* Navigation Links */}
+        {/* Navigation Links — only shown when authenticated */}
         {user && (
           <nav className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => {
@@ -84,14 +62,18 @@ export const Navbar: React.FC = () => {
           </nav>
         )}
 
-        {/* Right Section Actions */}
+        {/* Right section */}
         <div className="flex items-center gap-3">
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent hover:border-slate-700/60 transition-all"
             title="Toggle theme"
           >
-            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-slate-700" />
+            )}
           </button>
 
           {user ? (
@@ -110,7 +92,7 @@ export const Navbar: React.FC = () => {
               </Link>
 
               <button
-                onClick={handleLogout}
+                onClick={logout}
                 className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                 title="Sign out"
               >

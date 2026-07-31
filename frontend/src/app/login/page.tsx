@@ -2,19 +2,20 @@
 
 import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Server, Lock, User, AlertCircle } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { useAuth } from '@/lib/auth-context';
 
 export const dynamic = 'force-dynamic';
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get('next') || '/dashboard';
+  const { setUser } = useAuth();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -41,8 +42,15 @@ function LoginForm() {
         return;
       }
 
-      router.push(next);
-      router.refresh();
+      // Populate the auth context immediately so the Navbar reflects the
+      // logged-in state as soon as we arrive on the dashboard — no extra
+      // round-trip to /auth/me needed.
+      setUser({ id: data.id ?? 0, username: data.username, is_admin: data.is_admin ?? false });
+
+      // Hard navigation so the middleware re-evaluates the freshly-set cookie
+      // on a real HTTP request. This also clears any stale React state from
+      // previous sessions (including the loading flag on this form).
+      window.location.href = next;
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
       setLoading(false);
@@ -97,7 +105,7 @@ function LoginForm() {
       </form>
 
       <div className="mt-6 text-center text-xs text-slate-400">
-        Don't have an account yet?{' '}
+        Don&apos;t have an account yet?{' '}
         <Link href="/register" className="text-indigo-400 hover:underline font-medium">
           Create one
         </Link>
