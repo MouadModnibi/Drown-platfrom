@@ -6,6 +6,7 @@ from core.config import DEFAULT_DOMAIN, DEFAULT_BUILDER
 from core.database import init_database, upsert_app, log_deployment, get_replicas
 from core.docker_ops import build_image
 from core.scaler import redeploy_replicas
+from core.framework_detect import detect_and_patch
 
 
 def deploy(app_name, repo_path):
@@ -24,6 +25,10 @@ def deploy(app_name, repo_path):
         logging.warning(f"Could not read config file: {e}")
 
     try:
+        # Auto-detect and patch frontend frameworks before pack runs.
+        # Operates on repo_path/package.json only — never touches the git repo.
+        detect_and_patch(repo_path)
+
         build_image(app_name, repo_path, DEFAULT_BUILDER)
         upsert_app(app_name, custom_domain, DEFAULT_BUILDER)
 
