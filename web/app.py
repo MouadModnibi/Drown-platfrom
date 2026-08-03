@@ -129,11 +129,20 @@ def login():
         if user and check_password_hash(user[2], password):
             # Successful login
             session['user_id'] = user[0]
+            database.log_action(
+                user[0], user[1], 'login',
+                ip_address=request.remote_addr
+            )
             next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
             return redirect(url_for('index'))
         else:
+            database.log_action(
+                None, username, 'login_failed',
+                details='invalid credentials',
+                ip_address=request.remote_addr
+            )
             return render_template('login.html', error="Invalid username or password", username=username)
     
     return render_template('login.html')
@@ -185,6 +194,12 @@ def register():
 @app.route('/logout')
 def logout():
     """Logout and clear session."""
+    user = get_current_user()
+    if user:
+        database.log_action(
+            user['id'], user['username'], 'logout',
+            ip_address=request.remote_addr
+        )
     session.clear()
     return redirect(url_for('login'))
 
@@ -567,6 +582,11 @@ def profile():
             else:
                 ok = database.update_username(user['id'], new_username)
                 if ok:
+                    database.log_action(
+                        user['id'], user['username'], 'username_change',
+                        details=f"{user['username']} -> {new_username}",
+                        ip_address=request.remote_addr
+                    )
                     # Update session display name immediately
                     username_success = f"Username changed to \"{new_username}\""
                     # Re-fetch user so the template shows the new name
@@ -591,6 +611,10 @@ def profile():
             else:
                 new_hash = generate_password_hash(new_password)
                 database.update_password(user['id'], new_hash)
+                database.log_action(
+                    user['id'], user['username'], 'password_change',
+                    ip_address=request.remote_addr
+                )
                 password_success = "Password updated successfully"
 
     return render_template(
@@ -739,6 +763,12 @@ def api_scale_app(app_name):
         return jsonify({'error': f'scaling failed: {str(e)}'}), 500
 
     replicas = database.get_replicas(app_name)
+    database.log_action(
+        user['id'], user['username'], 'app_scale',
+        target=app_name,
+        details=f"replicas={len(replicas)}",
+        ip_address=request.remote_addr
+    )
     return jsonify({'app': app_name, 'replicas': len(replicas)}), 200
 
 
@@ -801,6 +831,12 @@ def api_create_app():
     domain = f"{app_name}.dr0wn.duckdns.org"
     database.upsert_app(app_name, domain, "heroku/builder:24")
     database.set_app_owner(app_name, user['id'])
+
+    database.log_action(
+        user['id'], user['username'], 'app_create',
+        target=app_name,
+        ip_address=request.remote_addr
+    )
 
     remote_url = f"ssh://ubuntu@51.170.134.251{repo_path}"
 
@@ -897,6 +933,10 @@ def api_register_key():
     except Exception as e:
         return jsonify({'error': f'failed to register key: {str(e)}'}), 500
 
+    database.log_action(
+        user['id'], user['username'], 'ssh_key_register',
+        ip_address=request.remote_addr
+    )
     return jsonify({'message': 'key registered successfully'}), 200
 
 
@@ -926,6 +966,15 @@ def delete_app_route(app_name):
     from core.scaler import delete_app
     try:
         success, replica_count, message = delete_app(app_name)
+        # Distinguish: admin deleting someone else's app vs owner deleting own
+        is_admin_action = (reason == 'admin')
+        log_details = f"admin deleted app owned by uid={owner_id}" if is_admin_action else f"owner deleted own app"
+        database.log_action(
+            user['id'], user['username'], 'app_delete',
+            target=app_name,
+            details=log_details,
+            ip_address=request.remote_addr
+        )
         return jsonify({'success': True, 'message': message}), 200
     except Exception as e:
         return jsonify({'error': f'Failed to delete app: {str(e)}'}), 500
@@ -979,13 +1028,88 @@ def admin_delete_app(app_name):
     if confirm_name != app_name:
         return jsonify({'error': 'App name confirmation does not match'}), 400
     
+    # Capture owner before deletion for the audit record
+    owner_id = database.get_app_owner(app_name)
+
     # Delete the app
     from core.scaler import delete_app
     try:
         success, replica_count, message = delete_app(app_name)
+        database.log_action(
+            user['id'], user['username'], 'app_delete',
+            target=app_name,
+            details=f"admin deleted app owned by uid={owner_id}",
+            ip_address=request.remote_addr
+        )
         return jsonify({'success': True, 'message': message}), 200
     except Exception as e:
         return jsonify({'error': f'Failed to delete app: {str(e)}'}), 500
+
+
+@app.route('/admin/audit-log')
+@login_required
+def admin_audit_log():
+    """Audit log page — admin only."""
+    user = get_current_user()
+    if not database.is_user_admin(user['id']):
+        return redirect(url_for('index'))
+
+    action_filter = request.args.get('action', '').strip() or None
+    user_filter_raw = request.args.get('user_id', '').strip()
+    user_filter = int(user_filter_raw) if user_filter_raw.isdigit() else None
+    limit = min(int(request.args.get('limit', 200)), 500)
+
+    rows = database.get_audit_log(limit=limit, user_id=user_filter, action=action_filter)
+    entries = []
+    for row_id, uid, uname, action, target, details, ip, created_at in rows:
+        entries.append({
+            'id': row_id,
+            'user_id': uid,
+            'username': uname or '—',
+            'action': action,
+            'target': target or '—',
+            'details': details or '',
+            'ip_address': ip or '—',
+            'created_at': created_at,
+        })
+
+    # Distinct action types for the filter dropdown
+    all_rows = database.get_audit_log(limit=5000)
+    action_types = sorted({r[3] for r in all_rows})
+
+    return render_template(
+        'audit_log.html',
+        entries=entries,
+        action_types=action_types,
+        current_action=action_filter or '',
+        current_limit=limit,
+    )
+
+
+@app.route('/api/admin/audit-log', methods=['GET'])
+def api_admin_audit_log():
+    """JSON audit log — admin only."""
+    user = get_user_from_token() or get_current_user()
+    if not user:
+        return jsonify({'error': 'unauthorized'}), 401
+    if not database.is_user_admin(user['id']):
+        return jsonify({'error': 'forbidden'}), 403
+
+    action_filter = request.args.get('action') or None
+    user_filter_raw = request.args.get('user_id', '')
+    user_filter = int(user_filter_raw) if user_filter_raw.isdigit() else None
+    limit = min(int(request.args.get('limit', 100)), 500)
+
+    rows = database.get_audit_log(limit=limit, user_id=user_filter, action=action_filter)
+    entries = [
+        {
+            'id': r[0], 'user_id': r[1], 'username': r[2],
+            'action': r[3], 'target': r[4], 'details': r[5],
+            'ip_address': r[6], 'created_at': r[7],
+        }
+        for r in rows
+    ]
+    return jsonify({'entries': entries, 'count': len(entries)}), 200
 
 
 @app.route('/api/admin/apps', methods=['GET'])
@@ -1092,6 +1216,12 @@ def api_app_config(app_name):
         if not key:
             return jsonify({'error': 'config key is required'}), 400
         database.set_config(app_name, key, value)
+        database.log_action(
+            user['id'], user['username'], 'config_set',
+            target=app_name,
+            details=key,  # log key name only — never the value
+            ip_address=request.remote_addr
+        )
         configs_data = database.get_configs(app_name)
         configs = [{'key': k, 'value': v} for k, v in configs_data]
         return jsonify({'app': app_name, 'configs': configs}), 200
@@ -1102,6 +1232,12 @@ def api_app_config(app_name):
         if not key:
             return jsonify({'error': 'config key is required'}), 400
         database.unset_config(app_name, key)
+        database.log_action(
+            user['id'], user['username'], 'config_unset',
+            target=app_name,
+            details=key,
+            ip_address=request.remote_addr
+        )
         configs_data = database.get_configs(app_name)
         configs = [{'key': k, 'value': v} for k, v in configs_data]
         return jsonify({'app': app_name, 'configs': configs}), 200
@@ -1130,6 +1266,11 @@ def api_user_profile():
 
         ok = database.update_username(user['id'], new_username)
         if ok:
+            database.log_action(
+                user['id'], user['username'], 'username_change',
+                details=f"{user['username']} -> {new_username}",
+                ip_address=request.remote_addr
+            )
             return jsonify({'message': f'username updated to {new_username}', 'username': new_username}), 200
         else:
             return jsonify({'error': 'username already taken'}), 409
@@ -1149,6 +1290,10 @@ def api_user_profile():
 
         new_hash = generate_password_hash(new_password)
         database.update_password(user['id'], new_hash)
+        database.log_action(
+            user['id'], user['username'], 'password_change',
+            ip_address=request.remote_addr
+        )
         return jsonify({'message': 'password updated successfully'}), 200
 
     else:

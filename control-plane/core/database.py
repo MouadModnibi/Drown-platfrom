@@ -82,6 +82,19 @@ def init_database():
         )
     ''')
 
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            username TEXT,
+            action TEXT NOT NULL,
+            target TEXT,
+            details TEXT,
+            ip_address TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -374,3 +387,50 @@ def get_user_password_hash(user_id):
     row = c.fetchone()
     conn.close()
     return row[0] if row else None
+
+
+# ---------------- audit log ----------------
+
+def log_action(user_id, username, action, target=None, details=None, ip_address=None):
+    """Insert a row into the audit_log table. Never raises — logging must not break app flow."""
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute('''
+            INSERT INTO audit_log (user_id, username, action, target, details, ip_address)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (user_id, username, action, target, details, ip_address))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass  # Audit log failure must never interrupt the main request
+
+
+def get_audit_log(limit=100, user_id=None, action=None):
+    """Return recent audit log entries, most recent first. Optionally filter by user_id or action."""
+    conn = get_connection()
+    c = conn.cursor()
+
+    conditions = []
+    params = []
+
+    if user_id is not None:
+        conditions.append('user_id = ?')
+        params.append(user_id)
+    if action is not None:
+        conditions.append('action = ?')
+        params.append(action)
+
+    where = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
+    params.append(limit)
+
+    c.execute(f'''
+        SELECT id, user_id, username, action, target, details, ip_address, created_at
+        FROM audit_log
+        {where}
+        ORDER BY created_at DESC
+        LIMIT ?
+    ''', params)
+    rows = c.fetchall()
+    conn.close()
+    return rows

@@ -6,7 +6,21 @@
 <div style="max-width: 1400px; margin: 0 auto;">
     <div style="margin-bottom: 32px;">
         <h1 style="font-size: 28px; font-weight: 600; margin-bottom: 8px; color: #E6EDF3;">Admin Dashboard</h1>
-        <p style="color: #8B949E; margin: 0;">Manage all apps across all users</p>
+        <p style="color: #8B949E; margin: 0 0 16px 0;">Manage all apps across all users</p>
+        <a href="{{ url_for('admin_audit_log') }}" style="
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 16px;
+            background: rgba(88, 166, 255, 0.1);
+            border: 1px solid rgba(88, 166, 255, 0.25);
+            border-radius: 8px;
+            color: #58A6FF;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        " onmouseover="this.style.background='rgba(88,166,255,0.18)'" onmouseout="this.style.background='rgba(88,166,255,0.1)'">
+            🗒 View Audit Log
+        </a>
     </div>
 
     <!-- Stats Summary -->
