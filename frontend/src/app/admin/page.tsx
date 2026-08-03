@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Shield, Users, Box, Trash2, Globe, AlertCircle, RefreshCw, Layers } from 'lucide-react';
+import { Shield, Users, Box, Trash2, Globe, AlertCircle, RefreshCw, Layers, ScrollText } from 'lucide-react';
 import { fetchApi, AdminApp } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -92,9 +92,16 @@ export default function AdminDashboardPage() {
             Platform-wide management across all registered users and applications
           </p>
         </div>
-        <Button variant="secondary" onClick={loadAdminApps} isLoading={loading}>
-          <RefreshCw className="w-4 h-4" /> Refresh Global List
-        </Button>
+        <div className="flex items-center gap-3">
+          <Link href="/admin/audit-log">
+            <Button variant="secondary">
+              <ScrollText className="w-4 h-4" /> Audit Log
+            </Button>
+          </Link>
+          <Button variant="secondary" onClick={loadAdminApps} isLoading={loading}>
+            <RefreshCw className="w-4 h-4" /> Refresh Global List
+          </Button>
+        </div>
       </div>
 
       {/* Global Overview Stats */}
