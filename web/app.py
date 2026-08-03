@@ -628,7 +628,8 @@ def profile():
 
 
 
-@app.route('/api/auth/login', methods=['POST']
+@app.route('/api/auth/login', methods=['POST'])
+           
 def api_login():
     data = request.get_json(silent=True) or {}
     username = data.get('username')
