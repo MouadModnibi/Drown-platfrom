@@ -63,37 +63,63 @@ def _scale_down(app_name, current, desired_count):
         logging.info(f"✓ Replica {replica_num} removed for {app_name}")
 
 def redeploy_replicas(app_name, image_name):
-    """Force-restart all existing replicas with the latest image.
-    If no replicas exist yet, create the first one."""
     current = get_replicas(app_name)
     env_vars = get_configs(app_name)
 
     if not current:
-        # First deploy for this app — create replica 1
         scale_app(app_name, image_name, 1)
         return
 
-    for replica_num, port, container_id, status in current:
-        container_name = f"{app_name}-{replica_num}"
+    for replica_num, old_port, old_container_id, status in current:
+        old_container_name = f"{app_name}-{replica_num}"
+        new_container_name = f"{app_name}-{replica_num}-new"
 
-        logging.info(f"Redeploying replica {replica_num} for {app_name}...")
+        # Start the new version on a temporary port
+        new_port = get_free_port()
 
-        stop_container(container_name)
-        new_container_id = run_container(image_name, container_name, port, env_vars)
+        new_container_id = run_container(
+            image_name,
+            new_container_name,
+            new_port,
+            env_vars,
+        )
 
         try:
-            wait_until_ready(port, container_name=container_name)
+            wait_until_ready(new_port)
         except Exception as e:
-            logging.error(f"Health check failed for {container_name}, cleaning up: {e}")
-            stop_container(container_name)
+            logging.error(
+                f"Rolling deploy failed for replica {replica_num}: {e}"
+            )
+            stop_container(new_container_name)
             raise RuntimeError(
-                f"Redeploy failed: '{app_name}' did not respond on port 8080 "
-                f"within the expected time. The container has been removed."
+                f"Deploy failed: replica {replica_num} failed health check."
             ) from e
 
-        add_replica(app_name, replica_num, port, new_container_id)
-        logging.info(f"✓ Replica {replica_num} redeployed on port {port}")
+        #
+        # Traffic switch
+        #
 
+        # Update database to point this replica to the NEW port
+        add_replica(app_name, replica_num, new_port, new_container_id)
+
+        # Regenerate + reload Caddy
+        regenerate_caddy_config()
+            # implement this if you don't already have it
+
+        #
+        # Safe to remove old container now
+        #
+
+        stop_container(old_container_name)
+
+        subprocess.run(
+            ["docker", "rename", new_container_name, old_container_name],
+            check=True,
+        )
+
+        logging.info(
+            f"✓ Replica {replica_num} updated with zero downtime"
+        )
 
 def delete_app(app_name):
     """

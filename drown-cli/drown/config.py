@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 # Default API base URL
-DEFAULT_API_BASE = "https://dashboard.dr0wn.duckdns.org"
+DEFAULT_API_BASE = "https://api.dr0wn.duckdns.org"
 
 # Config file location
 CONFIG_DIR = Path.home() / ".drown"
