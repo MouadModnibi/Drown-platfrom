@@ -17,6 +17,9 @@ async function handleProxy(request: NextRequest, { params }: { params: Promise<{
     }
 
     const backendUrl = `http://127.0.0.1:5000/api/${pathStr}`;
+    // Forward query string from the original request to the backend
+    const searchParams = request.nextUrl.searchParams.toString();
+    const backendUrlWithQuery = searchParams ? `${backendUrl}?${searchParams}` : backendUrl;
 
     const fetchOptions: RequestInit = {
       method: request.method,
@@ -30,7 +33,7 @@ async function handleProxy(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    const res = await fetch(backendUrl, fetchOptions);
+    const res = await fetch(backendUrlWithQuery, fetchOptions);
     const data = await res.json().catch(() => ({}));
 
     return NextResponse.json(data, { status: res.status });

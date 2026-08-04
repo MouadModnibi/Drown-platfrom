@@ -70,7 +70,7 @@ export default function AuditLogPage() {
       );
       const fetched = data.entries || [];
       setEntries(fetched);
-      // Build action type list from all entries on first full load
+      // Build action type list from the unfiltered load only — preserve it across filtered loads
       if (!action) {
         const types = [...new Set(fetched.map((e) => e.action))].sort();
         setActionTypes(types);
@@ -127,7 +127,11 @@ export default function AuditLogPage() {
           </label>
           <select
             value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setActionFilter(val);
+              load(val || undefined, limit);
+            }}
             className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 min-w-[180px]"
           >
             <option value="">All actions</option>
@@ -143,7 +147,11 @@ export default function AuditLogPage() {
           </label>
           <select
             value={limit}
-            onChange={(e) => setLimit(Number(e.target.value))}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              setLimit(val);
+              load(actionFilter || undefined, val);
+            }}
             className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
           >
             {LIMIT_OPTIONS.map((l) => (
