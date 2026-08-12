@@ -38,8 +38,6 @@ const FAQS: FAQ[] = [
     solution: [
       'Run "drown login" again — this re-generates your SSH key if needed and re-registers it with the platform automatically.',
       'If the problem persists, check that your SSH config has the drown-platform host alias: cat ~/.ssh/config',
-      'Test your connection manually: ssh -T ubuntu@drown-platform',
-      'If you need to register a key manually (advanced), use the toggle below.',
     ],
   },
   {
@@ -216,51 +214,7 @@ export default function HelpPage() {
         </p>
 
         {/* Advanced: manual key registration toggle */}
-        <div className="border-t border-slate-800/60 pt-3">
-          <button
-            onClick={() => setShowManualKey((v) => !v)}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
-          >
-            {showManualKey ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            Advanced: manually register a public key
-          </button>
-
-          {showManualKey && (
-            <form onSubmit={handleRegisterKey} className="mt-4 space-y-3">
-              <p className="text-xs text-slate-400">
-                Paste your public key below (e.g.{' '}
-                <span className="font-mono text-slate-300">cat ~/.ssh/id_ed25519.pub</span>) to register it
-                manually with your account.
-              </p>
-
-              {keySuccess && (
-                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{keySuccess}</span>
-                </div>
-              )}
-              {keyError && (
-                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>{keyError}</span>
-                </div>
-              )}
-
-              <textarea
-                rows={2}
-                placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... user@example.com"
-                value={publicKey}
-                onChange={(e) => setPublicKey(e.target.value)}
-                className="w-full rounded-lg bg-slate-900/90 border border-slate-800 text-slate-100 font-mono text-xs p-3 outline-none focus:border-indigo-500"
-                required
-              />
-
-              <Button type="submit" size="sm" isLoading={keyLoading}>
-                Register SSH Key
-              </Button>
-            </form>
-          )}
-        </div>
+        
       </Card>
 
       {/* Search Bar */}

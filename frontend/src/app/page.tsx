@@ -45,8 +45,9 @@ export default function LandingPage() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed"
           >
-            Mini-Heroku builds and orchestrates your applications with Heroku Buildpacks,
-            Docker container scaling, automated Caddy SSL proxying, and real-time metrics.
+            Mini-Heroku makes deploying and managing your applications simple.
+
+          Launch your apps, scale them when needed, and keep everything running smoothly without dealing with the complexity behind the scenes.
           </motion.p>
 
           <motion.div
@@ -85,7 +86,7 @@ export default function LandingPage() {
             <span className="text-xs font-mono text-slate-500">heroku/builder:24</span>
           </div>
           <div className="bg-slate-950 p-6 font-mono text-xs text-slate-300 space-y-2 leading-relaxed overflow-x-auto">
-            <p className="text-slate-500">$ git remote add platform ssh://ubuntu@drown-platform/git/my-api.git</p>
+            <p className="text-slate-500">$ drown login</p>
             <p className="text-slate-300">$ git push platform main</p>
             <p className="text-indigo-400">----&gt; Detecting buildpack... Node.js App detected</p>
             <p className="text-indigo-400">----&gt; Building container via Cloud Native Buildpack v24</p>
