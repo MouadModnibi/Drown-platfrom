@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 
 from core.config import MAX_REPLICAS_PER_APP
 from core.database import get_replicas, add_replica, remove_replica, get_configs
