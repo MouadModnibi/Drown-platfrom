@@ -1,0 +1,66 @@
+import time
+import re
+from database import list_apps, get_replicas, insert_metric, init_metrics_table, get_connection
+from docker_ops import get_multiple_container_metrics
+
+def parse_percent(value_str):
+    """Convert '0.5%' -> 0.5"""
+    try:
+        return float(value_str.replace("%", "").strip())
+    except (ValueError, AttributeError):
+        return 0.0
+
+def parse_mem_percent(mem_str):
+    """Convert '32MiB / 512MiB' -> 6.25"""
+    try:
+        used, limit = mem_str.split("/")
+        used_val = float(re.sub(r"[a-zA-Z]", "", used).strip())
+        limit_val = float(re.sub(r"[a-zA-Z]", "", limit).strip())
+        return round((used_val / limit_val) * 100, 2) if limit_val else 0.0
+    except Exception:
+        return 0.0
+
+def collect_once():
+    apps = list_apps()  # existing function: [(app_name, domain, status), ...]
+
+    for app_name, domain, status in apps:
+        if status != "running":
+            continue
+
+        replicas = get_replicas(app_name)  # existing function
+        container_ids = [r[3] for r in replicas if r[3]]  # adjust index to container_id field
+
+        if not container_ids:
+            continue
+
+        stats = get_multiple_container_metrics(container_ids)  # existing docker_ops function
+
+        # Aggregate across replicas for this app
+        total_cpu = 0.0
+        total_ram = 0.0
+        count = 0
+        for cid, data in stats.items():
+            if data:
+                total_cpu += parse_percent(data.get("cpu", "0%"))
+                total_ram += parse_mem_percent(data.get("memory", "0 / 0"))
+                count += 1
+
+        avg_cpu = round(total_cpu / count, 2) if count else 0.0
+        avg_ram = round(total_ram / count, 2) if count else 0.0
+
+        insert_metric(app_name, avg_cpu, avg_ram, request_count=0)  # request_count wired later via Caddy logs
+
+def run_forever():
+    conn = get_connection()
+    init_metrics_table(conn)
+    conn.close()
+
+    while True:
+        try:
+            collect_once()
+        except Exception as e:
+            print(f"[metrics_collector] error: {e}")
+        time.sleep(60)
+
+if __name__ == "__main__":
+    run_forever()
