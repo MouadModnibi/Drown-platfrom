@@ -95,6 +95,18 @@ def init_database():
         )
     ''')
 
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_name TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            cpu_percent REAL,
+            ram_percent REAL,
+            request_count INTEGER DEFAULT 0,
+            FOREIGN KEY(app_name) REFERENCES apps(app_name)
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -431,6 +443,49 @@ def get_audit_log(limit=100, user_id=None, action=None):
         ORDER BY created_at DESC
         LIMIT ?
     ''', params)
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+# ---------------- metrics ----------------
+
+def insert_metric(app_name, cpu_percent, ram_percent, request_count=0):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO metrics (app_name, cpu_percent, ram_percent, request_count)
+        VALUES (?, ?, ?, ?)
+    ''', (app_name, cpu_percent, ram_percent, request_count))
+    conn.commit()
+    conn.close()
+
+
+def get_recent_metrics(app_name, limit=100):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT timestamp, cpu_percent, ram_percent, request_count
+        FROM metrics WHERE app_name=? ORDER BY timestamp DESC LIMIT ?
+    ''', (app_name, limit))
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def get_hourly_pattern(app_name, days=14):
+    """Average load per (day_of_week, hour) over the last N days — used by the predictor."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT strftime('%w', timestamp) as dow,
+               strftime('%H', timestamp) as hour,
+               AVG(cpu_percent) as avg_cpu,
+               AVG(ram_percent) as avg_ram,
+               COUNT(*) as sample_count
+        FROM metrics
+        WHERE app_name=? AND timestamp >= datetime('now', ?)
+        GROUP BY dow, hour
+    ''', (app_name, f'-{days} days'))
     rows = c.fetchall()
     conn.close()
     return rows

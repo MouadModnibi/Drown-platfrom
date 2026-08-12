@@ -1,7 +1,7 @@
 import time
 import re
-from database import list_apps, get_replicas, insert_metric, init_metrics_table, get_connection
-from docker_ops import get_multiple_container_metrics
+from core.database import list_apps, get_replicas, insert_metric, init_database
+from core.docker_ops import get_multiple_container_metrics
 
 def parse_percent(value_str):
     """Convert '0.5%' -> 0.5"""
@@ -21,21 +21,20 @@ def parse_mem_percent(mem_str):
         return 0.0
 
 def collect_once():
-    apps = list_apps()  # existing function: [(app_name, domain, status), ...]
+    apps = list_apps()  # [(app_name, domain, status), ...]
 
     for app_name, domain, status in apps:
         if status != "running":
             continue
 
-        replicas = get_replicas(app_name)  # existing function
-        container_ids = [r[3] for r in replicas if r[3]]  # adjust index to container_id field
+        replicas = get_replicas(app_name)  # [(replica_num, port, container_id, status), ...]
+        container_ids = [r[2] for r in replicas if r[3] == "running" and r[2]]
 
         if not container_ids:
             continue
 
-        stats = get_multiple_container_metrics(container_ids)  # existing docker_ops function
+        stats = get_multiple_container_metrics(container_ids)
 
-        # Aggregate across replicas for this app
         total_cpu = 0.0
         total_ram = 0.0
         count = 0
@@ -48,12 +47,10 @@ def collect_once():
         avg_cpu = round(total_cpu / count, 2) if count else 0.0
         avg_ram = round(total_ram / count, 2) if count else 0.0
 
-        insert_metric(app_name, avg_cpu, avg_ram, request_count=0)  # request_count wired later via Caddy logs
+        insert_metric(app_name, avg_cpu, avg_ram, request_count=0)
 
 def run_forever():
-    conn = get_connection()
-    init_metrics_table(conn)
-    conn.close()
+    init_database()  # ensures metrics table exists too
 
     while True:
         try:
