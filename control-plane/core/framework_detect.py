@@ -180,7 +180,28 @@ def detect_and_patch(repo_path: str) -> bool:
     except Exception as e:
         logging.error(f"[framework_detect] Failed to write patched package.json: {e}")
         return False
-
+# If we added a new dependency (serve), package-lock.json is now out of sync.
+    # Buildpacks use `npm ci`, which requires an exact match — so regenerate the
+    # lockfile now with npm install, scoped to just this repo_path.
+    if serve_added:
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["npm", "install", "--package-lock-only"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            if result.returncode != 0:
+                logging.warning(
+                    f"[framework_detect] Failed to update package-lock.json: {result.stderr[-500:]}"
+                )
+            else:
+                logging.info("[framework_detect]   package-lock.json updated to match new dependency")
+        except Exception as e:
+            logging.warning(f"[framework_detect] Could not run npm install to update lockfile: {e}")
+	
     logging.info(
         f"-----> [framework_detect] Detected {framework} project — "
         f"scripts.start looks like a dev server, auto-configuring for deployment"
