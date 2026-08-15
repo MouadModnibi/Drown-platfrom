@@ -11,6 +11,7 @@ def regenerate_caddy_config():
     content = "import /etc/caddy/Caddyfile.dashboard\n"
 
     for app_name, domain, status in list_apps():
+        
         if status != "running":
             continue
 
@@ -25,11 +26,17 @@ def regenerate_caddy_config():
         content += f"""
 {domain} {{
     reverse_proxy {upstreams}
+    log {{
+        output file /var/log/caddy/{app_name}.log {{
+            roll_size 10mb
+            roll_keep 3
+        }}
+        format json
+    }}
 }}
 """
 
     if not content.strip():
-        # No apps running — write a minimal valid empty config
         content = "# no apps deployed\n"
 
     with open(CADDYFILE_PATH, "w") as f:
