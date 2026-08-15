@@ -2,6 +2,32 @@ import time
 import re
 from core.database import list_apps, get_replicas, insert_metric, init_database
 from core.docker_ops import get_multiple_container_metrics
+import json
+
+LOG_DIR = "/var/log/caddy"
+_log_offsets = {}  # in-memory: {app_name: last_byte_offset}
+
+def count_requests_since_last_check(app_name):
+    log_path = f"{LOG_DIR}/{app_name}.log"
+    try:
+        with open(log_path, "r") as f:
+            last_offset = _log_offsets.get(app_name, 0)
+            f.seek(last_offset)
+            new_lines = f.readlines()
+            _log_offsets[app_name] = f.tell()
+    except FileNotFoundError:
+        return 0
+
+    count = 0
+    for line in new_lines:
+        try:
+            entry = json.loads(line)
+            if entry.get("logger") == "http.log.access.log0":
+                count += 1
+        except json.JSONDecodeError:
+            continue
+
+    return count
 
 def parse_percent(value_str):
     """Convert '0.5%' -> 0.5"""
@@ -64,7 +90,8 @@ def collect_once():
         avg_cpu = round(total_cpu / count, 2) if count else 0.0
         avg_ram = round(total_ram / count, 2) if count else 0.0
 
-        insert_metric(app_name, avg_cpu, avg_ram, request_count=0)
+        req_count = count_requests_since_last_check(app_name)
+        insert_metric(app_name, avg_cpu, avg_ram, request_count=req_count)
 
 def run_forever():
     init_database()  # ensures metrics table exists too
