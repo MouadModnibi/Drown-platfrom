@@ -10,12 +10,29 @@ def parse_percent(value_str):
     except (ValueError, AttributeError):
         return 0.0
 
+def parse_mem_value(value_str):
+    """Convert '1.2GiB' or '512MiB' -> value in MiB (float)"""
+    value_str = value_str.strip()
+    match = re.match(r"([\d.]+)\s*([a-zA-Z]+)", value_str)
+    if not match:
+        return 0.0
+    num, unit = match.groups()
+    num = float(num)
+    unit = unit.lower()
+    if unit in ("gib", "gb"):
+        return num * 1024
+    elif unit in ("mib", "mb"):
+        return num
+    elif unit in ("kib", "kb"):
+        return num / 1024
+    return num
+
 def parse_mem_percent(mem_str):
     """Convert '32MiB / 512MiB' -> 6.25"""
     try:
         used, limit = mem_str.split("/")
-        used_val = float(re.sub(r"[a-zA-Z]", "", used).strip())
-        limit_val = float(re.sub(r"[a-zA-Z]", "", limit).strip())
+        used_val = parse_mem_value(used)
+        limit_val = parse_mem_value(limit)
         return round((used_val / limit_val) * 100, 2) if limit_val else 0.0
     except Exception:
         return 0.0
