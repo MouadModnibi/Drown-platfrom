@@ -105,11 +105,7 @@ def redeploy_replicas(app_name, image_name):
 
         # Regenerate + reload Caddy
         regenerate_caddy_config()
-            # implement this if you don't already have it
-
-        #
-        # Safe to remove old container now
-        #
+       
 
         stop_container(old_container_name)
 
