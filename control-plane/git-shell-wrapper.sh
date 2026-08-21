@@ -31,7 +31,7 @@ print(owner if owner is not None else '')
 
 if [ "$OWNER_ID" != "$USER_ID" ]; then
     echo "Permission denied: you do not own '$APP_NAME'."
-    exit 1
+    exit 1  
 fi
 
 # Ownership confirmed — execute the real git command
