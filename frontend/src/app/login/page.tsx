@@ -64,7 +64,7 @@ function LoginForm() {
           <Server className="w-6 h-6" />
         </div>
         <h2 className="text-2xl font-bold text-slate-100">Welcome Back</h2>
-        <p className="text-sm text-slate-400 mt-1">Sign in to your mini-heroku console</p>
+        <p className="text-sm text-slate-400 mt-1">Sign in to your Drown console</p>
       </div>
 
       {error && (
