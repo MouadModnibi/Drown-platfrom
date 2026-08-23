@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Mini-Heroku Platform | Modern Developer Cloud',
+  title: 'DRown Platform | Modern Developer Cloud',
   description: 'Self-hosted PaaS with automated Docker container builds, SSL proxying, and instant git push deployments.',
 };
 

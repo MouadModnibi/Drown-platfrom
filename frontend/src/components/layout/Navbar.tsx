@@ -31,7 +31,7 @@ export const Navbar: React.FC = () => {
           </div>
           <div className="flex flex-col">
             <span className="font-bold text-base tracking-tight text-slate-100 flex items-center gap-1.5">
-              mini-heroku
+              Drown
               
             </span>
           </div>

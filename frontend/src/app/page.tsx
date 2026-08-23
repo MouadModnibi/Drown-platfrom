@@ -45,7 +45,7 @@ export default function LandingPage() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed"
           >
-            Mini-Heroku makes deploying and managing your applications simple.
+            Drown makes deploying and managing your applications simple.
 
           Launch your apps, scale them when needed, and keep everything running smoothly without dealing with the complexity behind the scenes.
           </motion.p>

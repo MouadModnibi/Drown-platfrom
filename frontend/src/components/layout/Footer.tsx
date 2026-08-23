@@ -9,7 +9,7 @@ export const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500">
         <div className="flex items-center gap-2 font-mono">
           <Terminal className="w-4 h-4 text-indigo-400" />
-          <span>mini-heroku Platform v2.0 &bull; Developer Cloud Engine</span>
+          <span>Drown Platform v2.0 &bull; Developer Cloud Engine</span>
         </div>
         <div className="flex items-center gap-6">
           <span className="flex items-center gap-1.5">
