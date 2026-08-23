@@ -241,8 +241,7 @@ export default function AppDetailPage({ params }: { params: Promise<{ name: stri
               {domainUrl}
               <ExternalLink className="w-3 h-3" />
             </a>
-            <span className="text-slate-600">&bull;</span>
-            <span className="font-mono">Git Remote: ssh://ubuntu@51.170.134.251/home/ubuntu/git-hook-test/{appName}.git</span>
+            
           </div>
         </div>
 
