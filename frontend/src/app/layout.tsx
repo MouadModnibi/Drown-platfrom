@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'DRown Platform | Modern Developer Cloud',
+  title: 'Drown Platform',
   description: 'Self-hosted PaaS with automated Docker container builds, SSL proxying, and instant git push deployments.',
 };
 
